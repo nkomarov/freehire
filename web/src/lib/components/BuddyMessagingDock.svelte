@@ -8,6 +8,7 @@
   import { type DockWindow, mobileSheetId, totalUnread } from '#lib/buddyDock.js';
   import { buddyDock } from '#lib/buddyDock.svelte.js';
   import { ownsMobileStickyCta } from '#lib/supportToast.js';
+  import { Button } from '#lib/ui/index.js';
   import BuddyConversationPane from './BuddyConversationPane.svelte';
   import BuddyConversationRow from './BuddyConversationRow.svelte';
   import BuddyIdentity from './BuddyIdentity.svelte';
@@ -189,22 +190,25 @@
               {#if c.former_member}<span class="truncate">{name}</span>{:else}<BuddyIdentity handle={c.other.handle} summary={c.other.card_summary} size="sm" link={false} />{/if}
               {#if w.minimized}<BuddyUnreadBadge count={c.unread} />{/if}
             </button>
-            <button
-              type="button"
-              class="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground sm:size-7"
+            <!-- size-11 below `sm` keeps the 44px touch target the sheet needs; icon's size-8 is a desktop size. -->
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-11 shrink-0 text-muted-foreground sm:size-7"
               aria-label={w.minimized ? `Expand conversation with ${name}` : `Minimize conversation with ${name}`}
               onclick={() => toggle(w)}
             >
               {#if w.minimized}<ChevronUp class="size-4" aria-hidden="true" />{:else}<Minus class="size-4" aria-hidden="true" />{/if}
-            </button>
-            <button
-              type="button"
-              class="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground sm:size-7"
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="size-11 shrink-0 text-muted-foreground sm:size-7"
               aria-label="Close conversation with {name}"
               onclick={() => close(w.id)}
             >
               <X class="size-4" aria-hidden="true" />
-            </button>
+            </Button>
           </header>
           {#if !w.minimized}
             {#key c.id}

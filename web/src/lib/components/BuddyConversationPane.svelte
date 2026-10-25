@@ -4,7 +4,7 @@
   import { buddyConversationName, followsNewMessages, isSendShortcut, mergeBuddyMessages, messageActionFor } from '#lib/buddies.js';
   import { buddyDock } from '#lib/buddyDock.svelte.js';
   import type { BuddyConversation, BuddyMessage, BuddyReport } from '#lib/types.js';
-  import { Button, ConfirmDialog } from '#lib/ui/index.js';
+  import { Button, ConfirmDialog, FormField } from '#lib/ui/index.js';
   import BuddyIdentity from './BuddyIdentity.svelte';
 
   // One conversation: its messages, the invitation answer, the composer, block and
@@ -214,9 +214,12 @@
     {#if error}<p role="alert" class="py-2 text-sm text-destructive">{error}</p>{/if}
     {#if reportSuccess}<p role="status" class="py-2 text-sm text-muted-foreground">Report sent.</p>{/if}
     {#if reportOpen && live}<form id="{uid}-report" aria-label="Report {name}" class="mt-2 flex flex-col gap-2 rounded-md border border-border p-3" onsubmit={(e) => { e.preventDefault(); void report(); }}>
-      <label class="text-sm">Reason<select bind:this={reasonSelect} bind:value={reportReason} class="mt-1 block w-full rounded-md border border-border bg-background p-2"><option value="spam">Spam</option><option value="harassment">Harassment</option><option value="scam">Scam</option><option value="other">Other</option></select></label>
-      <label class="text-sm">Optional note<textarea bind:value={reportNote} maxlength="1000" rows="3" class="mt-1 block w-full rounded-md border border-border bg-background p-2"></textarea></label>
-      <span class="text-right text-xs text-muted-foreground">{reportNote.length}/1000</span>
+      <FormField label="Reason">
+        {#snippet children({ id })}<select {id} bind:this={reasonSelect} bind:value={reportReason} class="block w-full rounded-md border border-border bg-background p-2 text-sm"><option value="spam">Spam</option><option value="harassment">Harassment</option><option value="scam">Scam</option><option value="other">Other</option></select>{/snippet}
+      </FormField>
+      <FormField label="Optional note" hint="{reportNote.length}/1000">
+        {#snippet children({ id, describedBy })}<textarea {id} aria-describedby={describedBy} bind:value={reportNote} maxlength="1000" rows="3" class="block w-full rounded-md border border-border bg-background p-2 text-sm"></textarea>{/snippet}
+      </FormField>
       <div class="flex justify-end gap-2"><Button variant="outline" type="button" onclick={() => (reportOpen = false)}>Cancel</Button><Button variant="primary" type="submit" disabled={actionBusy || reportNote.length > 1000}>Send report</Button></div>
     </form>{/if}
     <div bind:this={list} onscroll={() => { if (list) following = followsNewMessages(list); }} class="min-h-0 flex-1 overflow-y-auto py-4">

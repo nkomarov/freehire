@@ -11,7 +11,8 @@
   // role was built with. The Talent Network page and an interview buddy's page both render
   // talentnetwork.CandidateCard, so both render it here. What only the catalogue knows —
   // where somebody is, what they are open to, a blurred photo — arrives as optional props;
-  // `actions` sits beside the heading and `children` closes the main column.
+  // `skillsSide` puts the skills in a left rail or inline in the main column, `actions`
+  // sits beside the heading and `children` closes the main column.
 
   let {
     card,
@@ -78,8 +79,10 @@
   }
 </script>
 
-<!-- Two columns from lg: the skills panel on the left at a fixed width, the card on the
-right. The panel follows the card in the DOM so a narrow screen reads the card first. -->
+<!-- `skillsSide="left"` (the Talent Network page): two columns from lg, the skills panel
+on the left at a fixed width and the card on the right; the panel follows the card in the
+DOM so a narrow screen reads the card first. `skillsSide="inline"` (a buddy's page): one
+full-width column, skills as a section after "Open to". -->
 <div class="flex w-full flex-col gap-4 lg:flex-row lg:gap-6">
   <div class="flex min-w-0 flex-col gap-6 lg:flex-1">
     <div class="flex items-start gap-4">
