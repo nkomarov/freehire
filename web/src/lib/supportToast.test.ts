@@ -13,6 +13,12 @@ describe('route rules', () => {
     expect(suppressesToast('/open')).toBe(true);
   });
 
+  it('suppresses the toast where it would cover the buddies chat composer', () => {
+    expect(suppressesToast('/my/buddies')).toBe(true);
+    // A member page keeps the dock, which already moves the toast out of the way.
+    expect(suppressesToast('/my/buddies/misty-sparrow-80')).toBe(false);
+  });
+
   it('allows the toast elsewhere', () => {
     expect(suppressesToast('/')).toBe(false);
     expect(suppressesToast('/jobs')).toBe(false);

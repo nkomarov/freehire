@@ -17,10 +17,12 @@
 /** localStorage key holding the visitor's answer to the star request. */
 export const SUPPORT_DISMISSED_KEY = 'hire.support-toast-dismissed';
 
-/** Pages that make this exact case at length already, where a toast repeating it is
- *  noise. */
+/** Pages where the toast does not belong: `/open` makes this exact case at length already,
+ *  so a toast repeating it is noise; `/my/buddies` is a chat whose composer sits in the
+ *  toast's corner, and the messaging dock that moves the toast aside elsewhere is hidden
+ *  there, so it would cover the Send button. */
 export function suppressesToast(pathname: string): boolean {
-  return pathname === '/open';
+  return pathname === '/open' || pathname === '/my/buddies';
 }
 
 /**
