@@ -52,12 +52,20 @@ const tagAutoApplyDrafting = "auto-apply-drafting"
 // Every entry here must also have a layout (layout.go), and a test asserts the containment:
 // a provider Submit will try to fill, with no description of its page to fill it by, would
 // reach a submit click with selectors matching nothing.
-var fillProviders = map[string]bool{
-	"greenhouse": true,
-}
+//
+// Empty since 2026-10-25, when Greenhouse moved to the browser-use executor (see
+// browserUseProviders): this host's own Chrome submitted from the host's own address, which
+// every candidate's application then carried to the employer, and it lost Greenhouse's
+// invisible reCAPTCHA as often as it passed it. The path stays — the DOM scan that builds
+// a Greenhouse or Lever plan still runs through it, and a provider this Chrome can complete
+// on is a row here again.
+var fillProviders = map[string]bool{}
 
-// SubmittableProviders is fillProviders as a value other packages may read: the providers
-// an application can be COMPLETED on without a person.
+// SubmittableProviders is the set other packages may read as "an application can be
+// COMPLETED here without a person": the providers this package's own browser submits on
+// (fillProviders) and the ones the browser-use executor does — the latter only while this
+// deployment has it enforcing, since in shadow mode it sends nothing and an agent planning
+// around the flag would wait on an application that is never made.
 //
 // It is exported because the OJCP surface publishes exactly this fact as
 // `supports_agent_submission`, the flag an external agent plans around, and a hand-written
@@ -67,9 +75,14 @@ var fillProviders = map[string]bool{
 //
 // A copy is returned so a caller cannot mutate the map this package routes on.
 func SubmittableProviders() map[string]bool {
-	out := make(map[string]bool, len(fillProviders))
+	out := make(map[string]bool, len(fillProviders)+len(browserUseProviders))
 	for provider, ok := range fillProviders {
 		out[provider] = ok
+	}
+	if browserUseEnforce() {
+		for provider, ok := range browserUseProviders {
+			out[provider] = out[provider] || ok
+		}
 	}
 	return out
 }
@@ -366,8 +379,13 @@ func (c *Client) resolve(ctx context.Context, claimed autoapply.Claimed, merged 
 	// one place that couples them regardless — found by code review. Not reachable today
 	// (cmd/auto-apply/main.go always wires both together), so left as a plain deterministic
 	// Resolve rather than special-cased for a configuration nothing constructs yet.
-	if c.atoms == nil || !fillProviders[claimed.Provider] {
+	if c.atoms == nil || !c.submits(claimed.Provider) {
 		return Resolve(merged, answers, hasApprovedCV), nil
+	}
+	// Nothing left to draft needs no model, and so no paid plan: a candidate whose answers
+	// already cover the form is not parked over an entitlement this attempt never uses.
+	if plan := Resolve(merged, answers, hasApprovedCV); plan.FullyResolved() {
+		return plan, nil
 	}
 
 	grounding, err := buildGroundingContext(ctx, c.atoms, claimed.UserID)
@@ -387,6 +405,24 @@ func (c *Client) resolve(ctx context.Context, claimed autoapply.Claimed, merged 
 	bound := llmkey.Bind(ctx, c.llmKeys, c.llmClient, claimed.UserID, llm.Feature(tagAutoApplyDrafting))
 	drafter := NewJevSelectDrafter(NewLLMDrafter(bound), c.typesafeAPIKey)
 	return ResolveWithDrafting(ctx, merged, answers, drafter, grounding, hasApprovedCV, c.letters, claimed.UserID, claimed.JobID)
+}
+
+// submits reports whether Submit can complete an application on provider — through this
+// package's own browser (fillProviders) or through the browser-use executor when it is wired
+// and enforcing with budget left today. resolve drafts only for these, so a draft is never
+// paid for that nothing will send, and never withheld from one that will be sent. The budget
+// is asked again at submission (BrowserUseExecutor.submit): another attempt may spend what was
+// left in between, and that refusal parks the attempt as before.
+//
+// It used to read fillProviders alone, from before browser-use submitted anything: on
+// 2026-10-25 an approved Workable application whose review screen said fourteen answers
+// "will be drafted at submission" reached submission with none drafted and parked on all of
+// them.
+func (c *Client) submits(provider string) bool {
+	if fillProviders[provider] {
+		return true
+	}
+	return c.browserUse != nil && browserUseProviders[provider] && browserUseEnforce() && c.browserUse.spend.allow(true)
 }
 
 // requirePaid asks the entitlement, failing closed when none is configured.
@@ -481,27 +517,48 @@ func (c *Client) renderResumeToTempFile(ctx context.Context, claimed autoapply.C
 // captured row for every provider cmd/capture-apply-form drains (Greenhouse, Ashby,
 // Workable, Lever — not only Recruitee, whose form arrives free with the crawl instead),
 // so preferring storage here too would risk a real submission reading a row captured for
-// the job page's own display, possibly stale, instead of a fresh fetch, for postings that
-// never needed this fallback at all. c.forms is therefore only ever reached as a fallback,
-// for the one case a live fetch cannot answer: no fetcher registered for the provider.
+// the job page's own display, possibly stale, when a fresh fetch was available.
+//
+// c.forms is therefore reached only when a live fetch cannot answer: no fetcher registered
+// for the provider, or a fetch that FAILED. The second is not hypothetical — on 2026-10-25
+// Workable answered this host's form requests with 429 and a Retry-After of 23 hours, after
+// cmd/capture-apply-form had read 3,369 of its forms from the same address that day, and
+// every approved Workable application failed before reaching the browser that would have
+// submitted it. The stored row is also the one the candidate reviewed (schemaFor reads it
+// first), and the fill itself still runs against the live page, which refuses a field the
+// form no longer has. With nothing stored, the live fetch's own error is returned, so a
+// transient failure stays an ordinary retryable one.
 func (c *Client) fetchSchema(ctx context.Context, claimed autoapply.Claimed) (applyform.Form, error) {
 	fetcher, ok := c.fetchers[claimed.Provider]
 	if !ok {
-		if c.forms != nil {
-			if form, storedOK, err := c.forms.GetStoredForm(ctx, claimed.JobID); err != nil {
-				return applyform.Form{}, err
-			} else if storedOK {
-				return form, nil
-			}
+		if form, storedOK, err := c.storedForm(ctx, claimed.JobID); err != nil || storedOK {
+			return form, err
 		}
 		return applyform.Form{}, fmt.Errorf("%w: %q", errNoSchemaFetcher, claimed.Provider)
 	}
-	return fetcher.Fetch(ctx, applyform.Claimed{
+	form, fetchErr := fetcher.Fetch(ctx, applyform.Claimed{
 		JobID:      claimed.JobID,
 		Provider:   claimed.Provider,
 		ExternalID: claimed.ExternalID,
 		URL:        claimed.JobURL,
 	})
+	if fetchErr == nil {
+		return form, nil
+	}
+	stored, storedOK, err := c.storedForm(ctx, claimed.JobID)
+	if err != nil || !storedOK {
+		return applyform.Form{}, fetchErr
+	}
+	log.Printf("atsapply: live %s form fetch for job %d failed (%v) — using the stored form", claimed.Provider, claimed.JobID, fetchErr)
+	return stored, nil
+}
+
+// storedForm reads the job's captured form, reporting false when no reader is wired.
+func (c *Client) storedForm(ctx context.Context, jobID int64) (applyform.Form, bool, error) {
+	if c.forms == nil {
+		return applyform.Form{}, false, nil
+	}
+	return c.forms.GetStoredForm(ctx, jobID)
 }
 
 // unscannableFormResult reports whether err is renderedHTML's classified outcome for a form

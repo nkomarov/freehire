@@ -3,6 +3,7 @@
   import { page } from '$app/state';
   import { siClaude, siCursor, type SimpleIcon } from 'simple-icons';
   import { sourceLogoUrl } from '#lib/logo.js';
+  import { glyphColorFor } from '#lib/markColor.js';
   import { EntityLogo, SectionLabel } from '#lib/ui/index.js';
 
   // The two hosted MCP servers. They are separate on purpose: a host only offers
@@ -27,11 +28,17 @@
   // One tile per host. `domain` is what the logo proxy resolves the mark from — by
   // name alone "Cursor" or "Grok" is ambiguous. `directory` is a one-click install from the host's own directory, drawn in that
   // host's brand colour and mark (from simple-icons, like every other brand mark on the
-  // site) so the button reads as the host's install, not ours.
+  // site) so the button reads as the host's install, not ours. The label's ink is picked
+  // per fill: white on Claude's terracotta measured 3.1:1, the near-black it gets instead 5.7:1.
   type Host = {
     id: string;
     label: string;
     domain: string;
+    // Our own copy of the mark, where the logo proxy resolves the wrong one: for Grok it
+    // returns xAI's wordmark rather than Grok Bot's round mark.
+    logo?: string;
+    // A black-on-transparent mark, inverted on the dark theme where it would vanish.
+    mono?: boolean;
     directory?: { url: string; brand: SimpleIcon; note: string };
     steps: string[];
     file?: string;
@@ -59,6 +66,7 @@
       id: 'chatgpt',
       label: 'ChatGPT',
       domain: 'chatgpt.com',
+      mono: true,
       steps: [
         'Open Settings, then Apps & Connectors.',
         'Under Advanced settings, turn on Developer mode.',
@@ -67,9 +75,37 @@
       ],
     },
     {
+      id: 'gemini',
+      label: 'Gemini',
+      domain: 'gemini.google.com',
+      // Google's own help page (support.google.com/gemini/answer/17209137); custom apps are
+      // US-only, personal Google accounts, web and mobile apps.
+      steps: [
+        'On gemini.google.com, open Settings, then Connected Apps.',
+        'Under Custom apps, choose Add a custom app, paste the address, and choose Next.',
+        'Follow the on-screen steps to finish connecting.',
+        'In a chat, type @, pick freehire, and ask a job question.',
+      ],
+    },
+    {
+      // Meta's Muse has no connector settings page: it adds a server when asked to in a
+      // chat, so the setup is a message to send rather than a form to fill.
+      id: 'muse',
+      label: 'Muse',
+      domain: 'muse.ai',
+      steps: [
+        'There is no settings page: send Muse the message below in a chat.',
+        'Tap Approve when Muse tests the connection, then ask a job question in the same chat.',
+      ],
+      file: 'message to Muse',
+      snippet: (u) => `Connect to my freehire MCP: ${u}`,
+    },
+    {
       id: 'grok',
       label: 'Grok Bot',
       domain: 'grok.com',
+      logo: '/brands/grok.png',
+      mono: true,
       steps: [
         'Open Connect apps in the sidebar.',
         'Add a custom app, name it freehire, and paste the address.',
@@ -216,7 +252,13 @@
           host === h.id ? 'border-foreground bg-secondary/60' : 'border-border bg-background hover:bg-secondary/40',
         ]}
       >
-        <EntityLogo name={h.label} src={sourceLogoUrl(h.label, h.domain) ?? undefined} size="lg" shape="square" />
+        <EntityLogo
+          name={h.label}
+          src={h.logo ?? sourceLogoUrl(h.label, h.domain) ?? undefined}
+          size="lg"
+          shape="square"
+          class={h.mono ? 'dark:invert' : undefined}
+        />
         <span class="text-base font-medium text-foreground">{h.label}</span>
       </button>
     {/each}
@@ -233,8 +275,9 @@
               href={h.directory.url}
               target="_blank"
               rel="noopener noreferrer"
-              class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+              class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
               style:background-color="#{h.directory.brand.hex}"
+              style:color={glyphColorFor(`#${h.directory.brand.hex}`)}
             >
               <svg viewBox="0 0 24 24" class="size-4 fill-current" aria-hidden="true"
                 ><path d={h.directory.brand.path} /></svg

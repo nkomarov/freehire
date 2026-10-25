@@ -29,6 +29,7 @@
   import CvRefreshDialog from '#lib/components/CvRefreshDialog.svelte';
   import SupportToast from '#lib/components/SupportToast.svelte';
   import SkipLink from '#lib/components/SkipLink.svelte';
+  import Announcer from '#lib/components/Announcer.svelte';
   import '../app.css';
   // Country-flag icon sheet for the design system's CountryFlag, which leaves loading it
   // to the app. References its SVGs by URL, so the browser only fetches flags actually
@@ -241,6 +242,9 @@
 {/if}
 
 <SkipLink target="main-content" />
+
+<!-- The live regions every announce() call speaks through. -->
+<Announcer />
 
 <div class="flex min-h-svh flex-col {dockReserve}">
   <TopBar />

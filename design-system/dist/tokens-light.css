@@ -17,7 +17,7 @@
   --destructive-foreground: oklch(0.985 0 0); /** Text/icon on a filled destructive surface. */
   --destructive-strong: oklch(0.52 0.22 27.325); /** Destructive text on the page background or a destructive tint, where the action color falls short of 4.5:1. */
   --border: oklch(0.92 0 0); /** Default border color. */
-  --input: oklch(0.93 0 0); /** Input border/fill color. */
+  --input: oklch(0.66 0 0); /** Input border/fill color. Dark enough (3.1:1 on the page and on cards) that a field's edge identifies it as a control (WCAG 1.4.11); at 0.93 it measured 1.2:1 and empty fields vanished into the page. */
   --ring: #5b6f00; /** Focus ring color: the brand fill, which clears 3:1 against every light surface (WCAG 1.4.11). brand-ring is too pale for a focus indicator on the page background (1.9:1). */
   --brand: #5b6f00; /** Brand CTA fill — oats green, dark olive (Granola palette). */
   --brand-foreground: #f3f6e2; /** Text/icon on brand surface. */
@@ -28,6 +28,10 @@
   --warning-foreground: oklch(0.279 0.077 45.635); /** Text on the caution fill. */
   --warning-strong: oklch(0.555 0.163 48.998); /** Caution text and borders on the page background, where the fill is not legible. */
   --warning-muted: oklch(0.962 0.059 95.617); /** Soft caution tint. A background that carries the meaning without the weight. */
+  --success: oklch(0.62 0.15 155); /** Success fill: a gain, a pass, a connected state. The solid block. */
+  --success-foreground: oklch(0.25 0.06 155); /** Text on the success fill (4.6:1). */
+  --success-strong: oklch(0.48 0.13 155); /** Success text and borders on the page (6.0:1) and on the success tint (5.3:1). */
+  --success-muted: oklch(0.95 0.05 155); /** Soft success tint behind success-strong text. */
   --spacing-0: 0; /** No spacing. */
   --spacing-1: 0.25rem; /** 4px — tight icon gap. */
   --spacing-2: 0.5rem; /** 8px — compact padding. */
@@ -67,9 +71,9 @@
   --shadow-md: 0px 2px 4px 0px oklch(0 0 0 / 0.1); /** Default elevation — cards, popovers. */
   --shadow-lg: 0px 4px 12px 0px oklch(0 0 0 / 0.15); /** High elevation — dialogs, modals. */
   --shadow-xl: 0px 8px 24px 0px oklch(0 0 0 / 0.2); /** Maximum elevation — overlays, toasts. */
-  --duration-fast: 150ms; /** Quick feedback — hover, focus, toggle. */
-  --duration-normal: 250ms; /** Standard transition — color, opacity. */
-  --duration-slow: 400ms; /** Deliberate motion — dialog open, panel expand. */
+  --duration-fast: 0.15s; /** Quick feedback — hover, focus, toggle. */
+  --duration-normal: 0.25s; /** Standard transition — color, opacity. */
+  --duration-slow: 0.4s; /** Deliberate motion — dialog open, panel expand. */
   --ease-in: cubic-bezier(0.4, 0, 1, 1); /** Accelerating exit. */
   --ease-out: cubic-bezier(0, 0, 0.2, 1); /** Decelerating entrance. */
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /** Symmetric — default for most transitions. */

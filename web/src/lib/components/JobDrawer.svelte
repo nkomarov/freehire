@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { resolve } from '$app/paths';
   import { goto } from '$app/navigation';
-  import { Button, cn, EntityLogo } from '#lib/ui/index.js';
+  import { Button, ConfirmDialog, cn, EntityLogo } from '#lib/ui/index.js';
   import { Trash2, X, ExternalLink, Mic, NotebookPen, Send, Target, SquarePen, Check } from '@lucide/svelte';
   import { askConfirmTailor } from '#lib/confirmTailorDialog.svelte.js';
   import { groupedStages, humanizeStage, offersDebrief } from '#lib/stages.js';
@@ -11,6 +11,7 @@
   import { locale } from '#lib/i18n/currentLocale.svelte.js';
   import { timeAgo, errorMessage } from '#lib/utils.js';
   import { tablist } from '#lib/actions/tablist.js';
+  import { ScrollEdges } from '#lib/scrollEdges.svelte.js';
   import { cardTagsFromCard } from '#lib/enrichment.js';
   import { companyLogoUrl } from '#lib/logo.js';
   import JobDescription from './JobDescription.svelte';
@@ -64,7 +65,8 @@
     item: MyJob;
     pendingOutcome: boolean;
     onsetstage: (stage: string) => void;
-    onsavenotes: (notes: string) => void;
+    // Rejects when the write fails; the notes editor reports it and keeps the text.
+    onsavenotes: (notes: string) => Promise<void>;
     onchooseoutcome: (o: ClosedOutcome) => void;
     // Called after a successful approve/decline so the board's own item (which this
     // component only ever borrows through the `item` prop) gets its badge updated —
@@ -73,7 +75,8 @@
     // whichever component owns `item`'s reactivity, the same division of labor every other
     // mutation here already follows.
     onautoapplyreview: (status: 'approved' | 'declined') => void;
-    onremove: () => void;
+    // Runs behind a confirmation, and may throw: its message is shown in the dialog.
+    onremove: () => Promise<void>;
     onclose: () => void;
     // The actions the card used to carry. They live here because a card carries no
     // controls — one on its surface is what stopped it being dragged at all.
@@ -96,6 +99,11 @@
   } = $props();
 
   const s = $derived(t(messages, locale()));
+
+  // Removing untracks the application — its stage, notes and history go with it — so it is
+  // asked first, the way deleting a list is.
+  let confirmRemoveOpen = $state(false);
+  const jobLabel = $derived(item.job?.title || item.role_title || s.removeUntitled);
 
   // Tailoring navigates away, and /tailor/[slug] owns its own bootstrap — so the wait is
   // this component's to show.
@@ -438,7 +446,11 @@
   const company = $derived(item.job?.company || item.company_slug);
   const title = $derived(item.job?.title || item.role_title);
   let tags = $derived(item.job ? cardTagsFromCard(item.job) : []);
-  let stageLabel = $derived(item.stage ? humanizeStage(item.stage) : null);
+  let stageLabel = $derived(item.stage ? humanizeStage(item.stage, locale()) : null);
+  // Tailoring is what the drawer leads with while the application is still being prepared —
+  // the same call to action the job page makes. Once it has been sent, a tailored CV is no
+  // longer the next step, and every action here weighs the same.
+  const tailorIsPrimary = $derived(!item.applied_at);
 
   // Lock background scroll while the fullscreen panel is open, released on unmount
   // (close / job switch). A DOM side-effect — the legitimate use of $effect.
@@ -454,12 +466,29 @@
   });
 
   // Close the panel, first blurring whatever is focused so a pending notes edit is
-  // flushed (the editor saves on blur) while the parent's openItem is still set —
-  // onclose clears it, and the deferred save reads openItem, so it must run first.
+  // flushed (the editor saves on blur) while the panel and its "Saving…" are still
+  // on screen; the editor's teardown save would catch it too, but out of sight.
   function close() {
     (document.activeElement as HTMLElement | null)?.blur();
     onclose();
   }
+
+  // The tab strip outgrows a phone ("Описание вакансии" was cut to "Описани" with nothing
+  // saying the row scrolls), so it fades whichever edge has tabs beyond it and keeps the
+  // selected tab in view.
+  let tabStrip = $state<HTMLElement | null>(null);
+  const tabEdges = new ScrollEdges();
+  $effect(() => {
+    void tab;
+    const active = tabStrip?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (active) tabEdges.reveal(active);
+  });
+
+  // One action block: a two-column grid of equal buttons on a phone, where a wrapping row
+  // left three outline buttons of different widths in a ragged pair of lines; a single
+  // wrapping row from sm up. An odd last button spans both columns rather than leaving a
+  // hole beside it. The label truncates rather than overflow a 170px column.
+  const actionClass = 'h-10 min-w-0 gap-1.5 px-2 sm:h-8 sm:px-3';
 
   const tabClass = (active: boolean) =>
     cn(
@@ -521,7 +550,8 @@
 {/snippet}
 
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && !blocked && close()} />
+<!-- The confirmation is stacked above the panel too: its Escape closes it, not both. -->
+<svelte:window onkeydown={(e) => e.key === 'Escape' && !blocked && !confirmRemoveOpen && close()} />
 
 <!-- Fullscreen job panel (like the swipe deck): a centered column with a fixed
      header + pill tabs, a scrolling tab body, and a pinned View-job footer. It covers
@@ -533,46 +563,31 @@
   aria-label={s.dialogAria}
   {@attach focusTrap()}
 >
-  <!-- Header: logo · title · company · close, then meta pills and tabs -->
+  <!-- Header: employer · close, then the title at full width, its pills, the actions and
+       the tabs. The title used to share a row with View job and the close button, which
+       on a phone left it a column one word wide. -->
   <div class="shrink-0 border-b border-border">
-    <div class="mx-auto flex w-full max-w-2xl flex-col gap-4 px-5 pb-3 pt-5 sm:px-6">
-      <div class="flex items-start gap-4">
-        <div class="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl">
-          <EntityLogo
-            name={company || s.unknownCompany}
-            src={companyLogoUrl(company) ?? undefined}
-            shape="square"
-            size="md"
-          />
-        </div>
-        <div class="min-w-0 flex-1">
-          <h2 class="text-xl font-bold leading-tight tracking-tight">{title}</h2>
-          <p class="text-sm text-muted-foreground">{company || s.unknownCompany}</p>
-        </div>
-        <div class="flex shrink-0 items-center gap-2">
-          {#if item.job}
-          <Button
-            variant="outline"
-            size="sm"
-            href={resolve('/jobs/[slug]', { slug: item.job.public_slug })}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="gap-1.5 whitespace-nowrap"
-          >
-            {s.viewJob}
-            <ExternalLink class="size-3.5" />
-          </Button>
-          {/if}
-          <button
-            type="button"
-            onclick={close}
-            class="-mr-1 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={s.close}
-          >
-            <X class="size-5" />
-          </button>
-        </div>
+    <div class="mx-auto flex w-full max-w-2xl flex-col gap-3 px-5 pb-3 pt-4 sm:gap-4 sm:px-6 sm:pt-5">
+      <div class="flex items-center gap-3">
+        <EntityLogo
+          name={company || s.unknownCompany}
+          src={companyLogoUrl(company) ?? undefined}
+          shape="square"
+          size="sm"
+          class="shrink-0"
+        />
+        <p class="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground">{company || s.unknownCompany}</p>
+        <button
+          type="button"
+          onclick={close}
+          class="-mr-1.5 shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          aria-label={s.close}
+        >
+          <X class="size-5" />
+        </button>
       </div>
+
+      <h2 class="text-balance text-xl font-semibold leading-tight tracking-tight">{title}</h2>
 
       {#if tags.length || stageLabel}
         <div class="flex flex-wrap items-center gap-2">
@@ -588,19 +603,48 @@
       <!-- What the candidate can do about this application, on every tab. The card used
            to carry Rehearse and Follow up in a strip beside its badges, which is both
            less room than they need and the reason the card could not be dragged. -->
-      {#if hasPosting || offersFollowUp}
-        <div class="flex flex-wrap items-center gap-2">
-          {#if hasPosting}
-            <Button variant="outline" size="sm" onclick={() => onrehearse(item)} disabled={startingSession} class="gap-1.5">
-              <Mic class="size-3.5" />
-              {startingSession ? s.starting : s.rehearse}
+      {#if item.job || offersFollowUp}
+        <div class="grid grid-cols-2 gap-2 *:last:odd:col-span-2 sm:flex sm:flex-wrap sm:items-center">
+          {#if item.job}
+            <Button
+              variant="outline"
+              size="sm"
+              href={resolve('/jobs/[slug]', { slug: item.job.public_slug })}
+              target="_blank"
+              rel="noopener noreferrer"
+              class={actionClass}
+            >
+              <ExternalLink class="size-3.5 shrink-0" />
+              <span class="truncate">{s.viewJob}</span>
+            </Button>
+            <Button
+              variant={tailorIsPrimary ? 'cta' : 'outline'}
+              size="sm"
+              onclick={startTailoring}
+              disabled={tailoring}
+              class={actionClass}
+            >
+              <SquarePen class="size-3.5 shrink-0" />
+              <span class="truncate">{tailoring ? s.preparing : s.tailorCv}</span>
+            </Button>
+            <Button variant="outline" size="sm" onclick={() => onrehearse(item)} disabled={startingSession} class={actionClass}>
+              <Mic class="size-3.5 shrink-0" />
+              <span class="truncate">{startingSession ? s.starting : s.rehearse}</span>
             </Button>
           {/if}
           {#if offersDebriefAction}
             <!-- Sits next to Rehearse: the pair reads as before and after the interview. -->
-            <Button variant="outline" size="sm" onclick={() => ondebrief(item)} disabled={startingSession} class="gap-1.5">
-              <NotebookPen class="size-3.5" />
-              {startingSession ? s.starting : s.debrief}
+            <Button variant="outline" size="sm" onclick={() => ondebrief(item)} disabled={startingSession} class={actionClass}>
+              <NotebookPen class="size-3.5 shrink-0" />
+              <span class="truncate">{startingSession ? s.starting : s.debrief}</span>
+            </Button>
+          {/if}
+          {#if item.job}
+            <!-- The analysis is already in this panel; sending the user to /tailor would
+                 close the application to show them something it contains. -->
+            <Button variant="outline" size="sm" onclick={() => (tab = 'fit')} class={actionClass}>
+              <Target class="size-3.5 shrink-0" />
+              <span class="truncate">{s.analyze}</span>
             </Button>
           {/if}
           {#if offersFollowUp}
@@ -608,22 +652,13 @@
               variant="outline"
               size="sm"
               onclick={() => onfollowup(item)}
-              class="gap-1.5 border-transparent bg-warning-muted text-warning-strong hover:bg-warning-muted hover:opacity-80"
+              class={cn(
+                actionClass,
+                'border-transparent bg-warning-muted text-warning-strong hover:bg-warning-muted hover:opacity-80',
+              )}
             >
-              <Send class="size-3.5" />
-              {item.followed_up_at ? s.chaseAgain : s.followUp}
-            </Button>
-          {/if}
-          {#if hasPosting}
-            <!-- The analysis is already in this panel; sending the user to /tailor would
-                 close the application to show them something it contains. -->
-            <Button variant="outline" size="sm" onclick={() => (tab = 'fit')} class="gap-1.5">
-              <Target class="size-3.5" />
-              {s.analyze}
-            </Button>
-            <Button variant="outline" size="sm" onclick={startTailoring} disabled={tailoring} class="gap-1.5">
-              <SquarePen class="size-3.5" />
-              {tailoring ? s.preparing : s.tailorCv}
+              <Send class="size-3.5 shrink-0" />
+              <span class="truncate">{item.followed_up_at ? s.chaseAgain : s.followUp}</span>
             </Button>
           {/if}
         </div>
@@ -638,7 +673,15 @@
         <p class="text-sm text-warning-strong" role="alert">{sessionError}</p>
       {/if}
 
-      <div class="no-scrollbar overflow-x-auto">
+      <div
+        bind:this={tabStrip}
+        {@attach tabEdges.attach}
+        class={cn(
+          'no-scrollbar overflow-x-auto',
+          !tabEdges.atStart && 'mask-l-from-90%',
+          !tabEdges.atEnd && 'mask-r-from-90%',
+        )}
+      >
         <div
           role="tablist"
           aria-label={s.tabsAria}
@@ -679,7 +722,7 @@
               <p class="text-sm font-medium">{s.howDidItClose}</p>
               <div class="flex flex-wrap gap-2">
                 {#each CLOSED_OUTCOMES as o (o)}
-                  <Button variant="outline" onclick={() => onchooseoutcome(o)}>{humanizeStage(o)}</Button>
+                  <Button variant="outline" onclick={() => onchooseoutcome(o)}>{humanizeStage(o, locale())}</Button>
                 {/each}
               </div>
             </div>
@@ -693,10 +736,17 @@
               <span class="font-medium">{s.history}</span>
               <ol class="flex flex-col gap-1.5">
                 {#each events as e (e.id)}
+                  <!-- The event first and its age beneath it on a phone, where a fixed time
+                       column wrapped "11 секунд назад" onto two lines beside a one-line
+                       event; side by side from sm up, the age kept whole on the right. -->
                   <li class="flex items-baseline gap-2">
                     <span class="shrink-0 text-xs {eventTone(e.kind)}" aria-hidden="true">●</span>
-                    <span class="w-24 shrink-0 text-xs text-muted-foreground">{timeAgo(e.occurred_at, locale())}</span>
-                    <span class="min-w-0 text-sm">{eventLabel(e, locale())}</span>
+                    <div class="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
+                      <span class="min-w-0 text-sm">{eventLabel(e, locale())}</span>
+                      <time datetime={e.occurred_at} class="text-xs text-muted-foreground sm:shrink-0 sm:whitespace-nowrap">
+                        {timeAgo(e.occurred_at, locale())}
+                      </time>
+                    </div>
                   </li>
                 {/each}
               </ol>
@@ -714,7 +764,7 @@
               <!-- Grouped so `Closed` reads as a heading over its three outcomes rather than
                    as a fifth state competing with them — the same four groups the board's
                    columns use, from the same generated table. -->
-              {#each groupedStages() as g (g.id)}
+              {#each groupedStages(locale()) as g (g.id)}
                 <optgroup label={g.label}>
                   {#each g.options as s (s.value)}
                     <option value={s.value}>{s.label}</option>
@@ -726,7 +776,7 @@
 
           <div class="flex flex-col gap-1 text-sm">
             <span class="font-medium">{s.notes}</span>
-            <NoteEditor value={item.notes ?? ''} onsave={onsavenotes} label={s.notes} />
+            <NoteEditor value={item.notes ?? ''} onsave={onsavenotes} label={s.notes} showSaveState />
           </div>
         </div>
       {:else if tab === 'auto_apply'}
@@ -952,7 +1002,7 @@
               <span class="min-w-0 flex-1 text-sm">
                 {format(s.looksLike, {
                   signal: statusLabel(stageSuggestion.signal, locale()).toLowerCase(),
-                  stage: item.stage ? humanizeStage(item.stage) : s.stageUnset,
+                  stage: item.stage ? humanizeStage(item.stage, locale()) : s.stageUnset,
                 })}
               </span>
               <Button
@@ -965,7 +1015,7 @@
                   if (stage) onsetstage(stage);
                 }}
               >
-                {format(s.moveTo, { stage: humanizeStage(stageSuggestion.stage) })}
+                {format(s.moveTo, { stage: humanizeStage(stageSuggestion.stage, locale()) })}
               </Button>
               <button
                 type="button"
@@ -1152,14 +1202,16 @@
     </div>
   </div>
 
-  <!-- Pinned footer: remove-from-board (destructive card action) -->
+  <!-- Pinned footer: remove-from-board (destructive card action). A flex sibling of the
+       scrolling body, not an overlay, so it never sits over the notes editor; `pb-safe`
+       lifts it clear of the home indicator. -->
   <div class="shrink-0 border-t border-border">
-    <div class="mx-auto flex w-full max-w-2xl justify-end px-5 py-3 sm:px-6">
+    <div class="mx-auto flex w-full max-w-2xl justify-end px-5 pb-safe pt-3 sm:px-6">
       <Button
         variant="ghost"
         size="sm"
-        onclick={onremove}
-        class="gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+        onclick={() => (confirmRemoveOpen = true)}
+        class="gap-1.5 text-destructive-strong hover:bg-destructive/10 hover:text-destructive-strong"
       >
         <Trash2 class="size-4" />
         {s.removeFromBoard}
@@ -1167,3 +1219,15 @@
     </div>
   </div>
 </div>
+
+<!-- Outside the panel's root on purpose: the panel's focus trap handles Tab on its own
+     subtree, and the native modal dialog already traps focus by itself. -->
+<ConfirmDialog
+  bind:open={confirmRemoveOpen}
+  title={format(s.removeDialogTitle, { job: jobLabel })}
+  description={s.removeDialogDescription}
+  confirmLabel={s.removeConfirm}
+  cancelLabel={s.removeCancel}
+  variant="destructive"
+  onConfirm={onremove}
+/>

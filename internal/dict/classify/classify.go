@@ -1,6 +1,6 @@
 // Package classify derives a job's seniority and role category deterministically
 // from its title. It is a curated dictionary, not a model: it resolves known
-// English and Russian title terms and emits nothing for what it cannot resolve
+// English, Russian, German and Dutch title terms and emits nothing for what it cannot resolve
 // (it never guesses). Canonical values are drawn from the same controlled
 // vocabularies the enrichment contract defines (vocab.SeniorityValues /
 // vocab.CategoryValues), so the parser, the enrichment payload, and the search
@@ -45,10 +45,19 @@ func Parse(title string) Classification {
 // non-technical but filed nowhere — which the ingest filter refuses.
 func matchCategory(lower string) string {
 	lower = ptGenderSuffix.Replace(lower)
-	if c := matchOrdered(lower, categoryTable); c != categoryNone {
-		return c
+	c := matchOrdered(lower, categoryTable)
+	if c == "" {
+		// Nothing in the main table: try the German compound heads (german.go),
+		// then the Dutch ones (dutch.go).
+		if c := matchHeads(lower, germanCategoryTable); c != "" {
+			return c
+		}
+		return matchHeads(lower, dutchCategoryTable)
 	}
-	return ""
+	if c == categoryNone {
+		return ""
+	}
+	return c
 }
 
 // matchSeniority resolves the grade of an already-lowercased title, first cutting
@@ -65,7 +74,18 @@ func matchSeniority(lower string) string {
 	for _, desk := range earlyCareersDeskPatterns {
 		lower = desk.ReplaceAllString(lower, " ")
 	}
-	return matchOrdered(lower, seniorityTable)
+	if s := matchOrdered(lower, seniorityTable); s != "" {
+		return s
+	}
+	// Nothing in the main table: try the Indian rungs and entry-hire words (india.go),
+	// then the German grade words and heads (german.go), then the Dutch ones (dutch.go).
+	if s := matchOrdered(lower, indianSeniorityTable); s != "" {
+		return s
+	}
+	if s := matchHeads(foldGermanSeniority(lower), germanSeniorityTable); s != "" {
+		return s
+	}
+	return matchHeads(foldDutchSeniority(lower), dutchSeniorityTable)
 }
 
 // Categories resolves every category the text mentions — each alias that occurs as a

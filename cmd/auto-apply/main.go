@@ -22,6 +22,7 @@ import (
 	"github.com/strelov1/freehire/internal/candidate/cv"
 	"github.com/strelov1/freehire/internal/candidate/experience"
 	"github.com/strelov1/freehire/internal/candidate/resume"
+	"github.com/strelov1/freehire/internal/identity/userprofile"
 	"github.com/strelov1/freehire/internal/ingest/screeninganswers"
 	"github.com/strelov1/freehire/internal/ingest/sources"
 	"github.com/strelov1/freehire/internal/platform/blobstore"
@@ -76,7 +77,8 @@ func run() int {
 	// extension-autofill path already resolves a candidate's profile through — see
 	// internal/candidateprofile's package doc for why this must be the one Assembler.
 	answers := assemblerAnswerSource{
-		assembler: candidateprofile.NewAssembler(cvStore, resumeStore, queries, screeningAnswersSvc, answerBank),
+		assembler: candidateprofile.NewAssembler(cvStore, resumeStore, queries, screeningAnswersSvc, answerBank).
+			WithProfileLocation(userprofile.New(userprofile.NewQueriesRepository(queries))),
 	}
 
 	// Question drafting (openspec/changes/auto-apply-llm-drafting) is optional: an
@@ -121,15 +123,24 @@ func run() int {
 		cvRenderer = r
 	}
 
-	// The same HTTP client the crawl and internal/applyform's own capture worker use: the
-	// Greenhouse/Ashby endpoints internal/atsapply reuses via applyform.Fetchers are the
-	// platforms' own public job-board APIs, so its user agent, timeouts and size caps are
-	// exactly right here too.
+	// The same HTTP client internal/applyform's own capture worker uses: the Greenhouse/Ashby
+	// endpoints internal/atsapply reuses via applyform.Fetchers are the platforms' own public
+	// job-board APIs, so the crawl's user agent, timeouts and size caps are exactly right here
+	// too. Every request egresses through the proxy, so the host's address is never the one a
+	// platform sees behind a candidate's application (sources.NewFormClientFromEnv).
+	formClient, proxied, err := sources.NewFormClientFromEnv()
+	if err != nil {
+		log.Printf("auto-apply: %v", err)
+		return 1
+	}
+	if !proxied {
+		log.Printf("auto-apply: WARNING no SOURCES_ROTATING_PROXY_URL or SOURCES_PROXY_URL — application forms are fetched from this host's own address")
+	}
 	// Drafting asks the plan, per attempt, whether the candidate is still on a paid plan
 	// before it spends a model call for them (atsapply.Client.resolve). Only the tier is
 	// read, so the allowance figures this store is built with play no part here.
 	entitlement := plan.NewStore(queries, pool, plan.ConfigFromEnv())
-	sidecar := atsapply.NewClient(sources.NewClient(), llmClient, llmKeyResolver, cfg.TypesafeAPIKey, atoms, letters, cvStore, cvRenderer, entitlement)
+	sidecar := atsapply.NewClient(formClient, llmClient, llmKeyResolver, cfg.TypesafeAPIKey, atoms, letters, cvStore, cvRenderer, entitlement)
 	// Stored-form fallback (openspec/changes/atsapply-recruitee-stored-schema): lets a
 	// provider with no live schema fetcher (today: Recruitee) reach field resolution
 	// instead of parking before it ever runs, by reading the form cmd/capture-apply-form
@@ -178,7 +189,7 @@ func run() int {
 	// never touches (no drafting, no résumé rendering) — but the same transport and the
 	// same stored-form reader, so a non-Greenhouse preview costs a Postgres read, not a
 	// second network fetch of what cmd/capture-apply-form already persisted.
-	previewSidecar := atsapply.NewPreviewClient(sources.NewClient(), &dbApplyFormReader{q: queries})
+	previewSidecar := atsapply.NewPreviewClient(formClient, &dbApplyFormReader{q: queries})
 	previewStats, err := autoapply.RunPreviews(ctx, store, answers, previewSidecar, autoapply.RunOptions{
 		BatchSize:    acfg.BatchSize,
 		LeaseSeconds: acfg.LeaseSeconds,

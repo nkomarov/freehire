@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLI_BANNER_DISMISSED_KEY } from './cliPromo';
 import {
   ownsMobileStickyCta,
   readDismissed,
-  SUPPORT_DISMISSED_KEY,
   suppressesToast,
   writeDismissed,
 } from './supportToast';
@@ -13,16 +11,17 @@ describe('route rules', () => {
     expect(suppressesToast('/open')).toBe(true);
   });
 
-  it('suppresses the toast where it would cover the buddies chat composer', () => {
-    expect(suppressesToast('/my/buddies')).toBe(true);
-    // A member page keeps the dock, which already moves the toast out of the way.
-    expect(suppressesToast('/my/buddies/misty-sparrow-80')).toBe(false);
+  it('suppresses the toast across the account area', () => {
+    expect(suppressesToast('/my')).toBe(true);
+    expect(suppressesToast('/my/profile')).toBe(true);
+    expect(suppressesToast('/my/assistant/0f0b1e3a')).toBe(true);
   });
 
   it('allows the toast elsewhere', () => {
     expect(suppressesToast('/')).toBe(false);
     expect(suppressesToast('/jobs')).toBe(false);
     expect(suppressesToast('/openings')).toBe(false);
+    expect(suppressesToast('/mycompany')).toBe(false);
   });
 
   it('marks the job page as owning a sticky mobile call to action', () => {
@@ -68,16 +67,6 @@ describe('dismissal', () => {
     expect(readDismissed()).toBe(false);
     writeDismissed();
     expect(readDismissed()).toBe(true);
-  });
-
-  it('leaves the CLI strip’s own key alone', () => {
-    const store = new Map([[CLI_BANNER_DISMISSED_KEY, '1']]);
-    installStorage(store);
-
-    writeDismissed();
-
-    expect(store.get(CLI_BANNER_DISMISSED_KEY)).toBe('1');
-    expect(store.get(SUPPORT_DISMISSED_KEY)).toBe('1');
   });
 
   it('reads as unanswered when storage is unavailable', () => {

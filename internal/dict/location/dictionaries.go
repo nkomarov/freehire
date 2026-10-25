@@ -240,6 +240,20 @@ var nameToCountry = map[string]string{
 	"dänemark": "dk", "finnland": "fi", "irland": "ie", "norwegen": "no",
 	"tschechien": "cz", "bulgarien": "bg", "saudi-arabien": "sa",
 	"vereinigte arabische emirate": "ae", "bundesweit": "de",
+	// Dutch — Recruitee writes the country in the posting's language, and "Nederland"
+	// is otherwise read as the Colorado town of that name (10,801 open rows, 2026-10-25).
+	"nederland": "nl", "belgië": "be", "belgie": "be", "duitsland": "de",
+	"frankrijk": "fr", "spanje": "es", "italië": "it", "verenigd koninkrijk": "gb",
+	"verenigde staten": "us", "oostenrijk": "at", "zwitserland": "ch", "zweden": "se",
+	"denemarken": "dk", "noorwegen": "no", "ierland": "ie", "griekenland": "gr",
+	"tsjechië": "cz", "hongarije": "hu", "roemenië": "ro", "luxemburg": "lu",
+	// French, for the Belgian postings written in it.
+	"belgique": "be", "pays-bas": "nl", "royaume-uni": "gb", "allemagne": "de",
+	"suisse": "ch", "espagne": "es",
+	// Endonyms the same field carries for the rest of Europe (Recruitee, 2026-10-25).
+	"noreg": "no", "polska": "pl", "svizzera": "ch", "eesti": "ee", "slovenija": "si",
+	"slovensko": "sk", "česko": "cz", "česká republika": "cz", "éire": "ie",
+	"lietuva": "lt", "latvija": "lv", "hrvatska": "hr", "românia": "ro", "ελλάδα": "gr",
 
 	// --- Beacon cities (high-frequency, unambiguous), region falls out of the code.
 	// North America (US).
@@ -280,6 +294,11 @@ var nameToCountry = map[string]string{
 	"new delhi": "in", "delhi": "in", "kolkata": "in", "ahmedabad": "in",
 	"kochi": "in", "coimbatore": "in", "jaipur": "in", "indore": "in",
 	"chandigarh": "in", "thiruvananthapuram": "in",
+	// Indian cities whose name GeoNames also files under a place elsewhere (Madras, Oregon;
+	// Faridabad, Pakistan; Lucknow, Ontario), so the city table alone states no country
+	// for them. "Salem", "Kota" and "Whitefield" are withheld: the other readings are real.
+	"faridabad": "in", "madras": "in", "calcutta": "in", "bombay": "in",
+	"lucknow": "in", "patna": "in", "agra": "in", "howrah": "in", "raipur": "in",
 	"ho chi minh city": "vn", "hanoi": "vn",
 	"karachi": "pk", "lahore": "pk", "islamabad": "pk", "dhaka": "bd", "colombo": "lk",
 	// Europe.

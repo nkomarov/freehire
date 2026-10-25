@@ -198,12 +198,26 @@ linters:
         - informacion
         - confidencial
         - administr
+        - hybrides
         - instruktor
         - informatike
         - infrastrukture
         - manipulant
         - omre
         - proces
+        # Dutch title vocabulary (internal/dict/classify/dutch.go).
+        - administratief
+        - adviseur
+        - communicatie
+        - informatie
+        - infrastructuur
+        - productie
+        - produktion
+        - programmeur
+        - psycholoog
+        - economisch
+        - defensie
+        - ierland
 
 formatters:
   enable:

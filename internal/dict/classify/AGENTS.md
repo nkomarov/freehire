@@ -200,6 +200,78 @@ If you are tempted to widen this family, sample the phrase against live titles f
 every term here was admitted that way, and the whole exception depends on none of them
 being loose.
 
+## German compound heads
+
+German names a role in a compound whose LAST morpheme is the role — Kranken|pfleger,
+Stapler|fahrer — so whole-word aliases cannot keep up with the long tail. `german.go`
+holds two tables, `germanCategoryTable` and `germanSeniorityTable`, where an alias
+written `-pfleger` matches any word ending in it and an alias without the dash is a
+whole-word phrase. They run only when the main table resolved NOTHING, so they never
+change a title that already resolves.
+
+A head resolves per WORD: a word takes the first head it ends in, so a longer veto
+(`-begleiter` → `categoryNone`) claims "Alltagsbegleiter" before `-leiter` can read it
+as a lead, without blanking the rest of the title. The fused feminine endings
+(`-in`, `-innen`) are folded once per word; `(m/w/d)`-style notices are cut first so
+they cannot split a phrase. Trainee words outrank the `-leiter`/`-leitung` heads: a
+"Praktikant Bauleitung" is an intern.
+
+Measured 2026-10-25 over the 123,605 open postings of coveto, rexx, xing, dvinci,
+concludis, onlyfy and kenjo: category 15.4% → 75.3%, seniority 2.0% → 24.6% (most
+German titles state no grade). A hand-checked hold-out of 100 newly resolved titles
+found one debatable category and one debatable grade. Short or ambiguous words are
+deliberately absent — `maler` is whole-word only because "normaler" ends in it, and
+the acronyms `MFA`/`OTA`/`PTA` are out because English titles use them for other things.
+
+The title's invisible format characters (U+00AD soft hyphens above all) are cut by
+`normalize.CleanTitle` inside `jobderive.Derive`, for the dictionaries only — the
+stored title and the public slug keep what the source sent.
+
+## Dutch compound heads
+
+Dutch builds role names the same way (servicedesk|medewerker, wijk|verpleegkundige),
+so `dutch.go` holds `dutchCategoryTable` and `dutchSeniorityTable` with the same alias
+syntax and the same matcher (`matchHeads`). They run after the main AND the German
+tables resolved nothing. Generic heads that name no trade — `medewerker`, `adviseur`,
+`coördinator`, `specialist` — are absent; only the compound or phrase that names the
+trade resolves ("magazijnmedewerker", "HR adviseur"). `medior` is `middle`. A plain
+`directeur` states no grade, as the main table's "director" does; `algemeen directeur`,
+`directeur-bestuurder` and the CFO/CTO-style `financieel/technisch directeur` are
+`c_level`.
+
+Because the fallback also sees English, French and German titles, `stage` is a whole
+word only — as a tail it read German "Urlaubstage" and "Justage" — and its English uses
+(Stage Manager, Late Stage, Stage II, DataStage) are vetoed; `-kok` vetoes "Bangkok".
+
+Measured 2026-10-25 over 42,176 open Dutch postings (eures, recruitee, whatjobs-nl;
+`jobderive.Derive` on title, location and description only): category 54.9% → 72.8%,
+seniority 22.0% → 27.4%. Over 542k control titles (greenhouse, lever, smartrecruiters,
+workday, the German crawl) the Dutch tables resolved 2,814 categories and 2,149 grades,
+hand-checked: almost all are Dutch, Flemish or French postings read correctly.
+
+## Indian grade forms
+
+`india.go` holds `indianSeniorityTable`, a FALLBACK read after the main table and before
+the German and Dutch ones, so a stated grade always wins ("Senior Software Engineer II" is senior).
+The SDE ladder reads three rungs (SDE-1 junior, SDE-2 middle, SDE-3 senior, and the SDET
+and "Software Development Engineer" spellings); every other ladder reads only I and II,
+in Roman numerals: "Software Engineer III" is senior at some employers and mid at others,
+and "Java Developer 2-5 Years" is a range, not a rung. "Associate" grades only the role
+it precedes ("Associate Software Engineer", "Associate Consultant"); alone, before a rank
+or after a shop role it states nothing. SMTS/LMTS/PMTS are graded, bare MTS is not (it is
+the grade-blind "Member of Technical Staff"). Fresher is junior, Apprentice intern, Team
+Leader lead.
+
+Two changes sit in the MAIN table, because the main table answered them wrongly: the
+trainee HIRES ("Graduate Engineer Trainee", "Management Trainee", "Graduate Trainee",
+"Trainee Engineer") are junior, ahead of the bare "trainee" that stays intern; and
+"Assistant/Associate Vice President" are grade-blind phrases — an AVP is a corporate
+title below VP, not an executive, and used to read as `c_level` through the "vice
+president" inside it. No grade is ever read from a years figure in a title.
+
+Measured 2026-10-25 over 63,305 Indian postings: title seniority 31.6% → 34.1%; a
+hand-check of every newly resolved title in the top 400 found none wrong.
+
 ## Serving: dict-only
 
 `jobview.FromRow` overwrites the nested `enrichment.seniority`/`enrichment.category` with the `jobs` column — the dictionary always wins, the LLM's value is never a fallback. They remain **nested under `enrichment`** so existing search facets, SPA, and generated contracts are unchanged.

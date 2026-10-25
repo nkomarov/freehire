@@ -41,6 +41,13 @@ func loadMetros(tsv string) (map[metroKey]string, map[[2]string]string) {
 		if len(f) != 4 {
 			continue
 		}
+		if f[1] == "in" {
+			// The city table speaks folded Indian names (foldIndianName), so this one does too.
+			f[0], f[3] = foldIndianName(f[0]), foldIndianName(f[3])
+		}
+		if v, ok := metroLabelOverrides[f[3]]; ok {
+			f[3] = v
+		}
 		ek := metroKey{f[0], f[1], f[2]}
 		if prev, ok := exact[ek]; ok && prev != f[3] {
 			exactAmbiguous[ek] = true
@@ -73,6 +80,9 @@ func loadMetros(tsv string) (map[metroKey]string, map[[2]string]string) {
 // metro, and gets nothing) and is never returned as a metro.
 func metroFor(cityName, country string, stated map[string]struct{}) (string, bool) {
 	name := strings.ToLower(cityName)
+	if from, ok := cityRenamedFrom[[2]string{name, country}]; ok {
+		name = from // the metro table speaks GeoNames names, not the curated display name
+	}
 	if len(stated) == 0 {
 		v := metroByName[[2]string{name, country}]
 		return v, v != ""

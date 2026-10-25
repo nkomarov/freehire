@@ -42,6 +42,7 @@ type Profile struct {
 	NoticePeriod          string `json:"notice_period"`
 	WillingToRelocate     string `json:"willing_to_relocate"`
 	Age18OrOlder          string `json:"age_18_or_older"`
+	PrivacyConsent        string `json:"privacy_consent"`
 
 	// BankAnswers is topic → answer for the questions this candidate has answered on
 	// earlier applications. Not a fixed field like the ones above, because the questions
@@ -80,6 +81,7 @@ func (p Profile) Fields() map[string]string {
 		"notice_period":           p.NoticePeriod,
 		"willing_to_relocate":     p.WillingToRelocate,
 		"age_18_or_older":         p.Age18OrOlder,
+		"privacy_consent":         p.PrivacyConsent,
 	}
 }
 
@@ -147,6 +149,9 @@ type Assembler struct {
 	// bank is nil-able: "no answer bank configured" degrades to no banked answers, the
 	// same way an unconfigured screening-answers reader degrades those fields to empty.
 	bank BankReader
+	// profiles is nil-able: the job-search profile's base, read only when no contact source
+	// states a location (WithProfileLocation).
+	profiles ProfileReader
 }
 
 // NewAssembler builds an Assembler over its sources. screeningAnswers and bank may be nil.
@@ -182,6 +187,19 @@ func (a *Assembler) Assemble(ctx context.Context, userID int64) (Profile, error)
 	}
 
 	profile := BuildProfile(firstStatedHeader(fromCV, fromResume), account.Email)
+	// The header answers for the whole block (firstStatedHeader), so a CV that states a name
+	// and no location would hide the résumé's location; the résumé is asked for that one
+	// field before the search profile is.
+	if profile.Location == "" {
+		profile.Location = fromResume.Location
+	}
+	if profile.Location == "" {
+		base, err := a.baseLocation(ctx, userID)
+		if err != nil {
+			return Profile{}, err
+		}
+		profile.Location = base
+	}
 	if err := applyScreeningFields(ctx, &profile, a.screeningAnswers, userID); err != nil {
 		return Profile{}, err
 	}
@@ -295,5 +313,6 @@ func applyScreeningFields(ctx context.Context, p *Profile, reader ScreeningAnswe
 	p.NoticePeriod = fields["notice_period"]
 	p.WillingToRelocate = fields["willing_to_relocate"]
 	p.Age18OrOlder = fields["age_18_or_older"]
+	p.PrivacyConsent = fields["privacy_consent"]
 	return nil
 }

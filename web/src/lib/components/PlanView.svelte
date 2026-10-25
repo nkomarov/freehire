@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { buttonVariants } from '#lib/ui/index.js';
   import { resolve } from '$app/paths';
   import { replaceState } from '$app/navigation';
   import { page } from '$app/state';
@@ -6,7 +7,7 @@
   import { api } from '#lib/api.js';
   import { currentUser, isAuthenticated } from '#lib/auth.svelte.js';
   import { locale } from '#lib/i18n/currentLocale.svelte.js';
-  import { plural, t, tokenLabel } from '#lib/i18n/t.js';
+  import { format, plural, t, tokenLabel } from '#lib/i18n/t.js';
   import { formatMinorUnits } from '#lib/money.js';
   import type { AiUsage, BillingOverview, PlanState, UsageHistoryEntry } from '#lib/types.js';
   import { messages } from './PlanView.messages';
@@ -28,6 +29,16 @@
   // which is wrong-looking rather than silently reading as "Free".
   const planLabel = (tier: PlanState['plan']) =>
     tier === 'ultra' ? s.planStrip.ultra : tier === 'pro' ? s.planStrip.pro : s.planStrip.free;
+
+  // A metered feature's name. `feature` is a stable API key, and one the strings have no
+  // label for yet (a feature shipped before its translation) is humanised rather than
+  // printed raw: "cover-letter" on the page reads as a bug, "Cover letter" merely as plain.
+  const featureLabel = (feature: string) => {
+    const label = tokenLabel(s.today.features, feature);
+    if (label !== feature) return label;
+    const words = feature.split(/[-_]+/).filter(Boolean).join(' ');
+    return words.charAt(0).toUpperCase() + words.slice(1);
+  };
   let history = $state<UsageHistoryEntry[]>([]);
   let status = $state<'loading' | 'error' | 'ready'>('loading');
 
@@ -140,8 +151,7 @@
 
   const money = formatMinorUnits;
 
-  $effect(() => {
-    if (!isAuthenticated()) return;
+  function load() {
     status = 'loading';
     Promise.all([api.myPlan(), api.myPlanHistory()])
       .then(([p, h]) => {
@@ -152,6 +162,11 @@
       .catch(() => {
         status = 'error';
       });
+  }
+
+  $effect(() => {
+    if (!isAuthenticated()) return;
+    load();
   });
 
   const fmtDate = (iso: string) =>
@@ -202,7 +217,7 @@
                  annual belongs on a page that can explain it, and sending someone to a payment
                  form without it silently sells them the monthly one. -->
             <a
-              class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+              class={buttonVariants({ variant: 'cta', size: 'sm' })}
               href={resolve('/pricing')}
               >{plan.plan === 'free' ? s.planStrip.upgrade : s.planStrip.upgradeUltra}</a
             >
@@ -291,12 +306,18 @@
         <ul class="flex flex-col divide-y divide-border rounded-lg border border-border">
           {#each plan.allowances as a (a.feature)}
             <li class="flex items-center justify-between gap-3 px-4 py-3">
-              <span class="truncate text-sm font-medium">{tokenLabel(s.today.features, a.feature)}</span>
+              <span class="truncate text-sm font-medium">{featureLabel(a.feature)}</span>
               {#if a.unlimited}
                 <span class="shrink-0 text-sm text-muted-foreground">{s.today.unlimited}</span>
+              {:else if !a.limit}
+                <!-- The API omits a zero limit. Printing it left a dangling "0 /"; a zero
+                     allowance is a feature this plan does not include, so it says that. -->
+                <span class="shrink-0 text-sm text-muted-foreground">
+                  {format(s.today.notOnPlan, { plan: planLabel(plan.plan) })}
+                </span>
               {:else}
                 <span
-                  class="shrink-0 text-sm font-semibold tabular-nums {a.used >= (a.limit ?? 0)
+                  class="shrink-0 text-sm font-semibold tabular-nums {a.used >= a.limit
                     ? 'text-muted-foreground'
                     : ''}"
                 >
@@ -336,7 +357,7 @@
       {#if status === 'loading'}
         <States state="loading" />
       {:else if status === 'error'}
-        <States state="error" message={s.history.loadError} />
+        <States state="error" message={s.history.loadError} onRetry={load} />
       {:else if history.length === 0}
         <States state="empty" message={s.history.empty} />
       {:else}

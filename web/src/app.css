@@ -14,6 +14,13 @@
   * {
     @apply border-border outline-ring;
   }
+  /* Tailwind's preflight greys placeholders out to half the text colour, which measured
+     3.8:1 against the page. A placeholder is text a reader has to make out, so it takes
+     the muted token like any other secondary text. */
+  input::placeholder,
+  textarea::placeholder {
+    @apply text-muted-foreground;
+  }
   html,
   body {
     height: 100%;
@@ -67,6 +74,13 @@
    modal's footer both follow. */
 @utility pb-safe {
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/* Offset for a toast or banner fixed to the screen's bottom edge: 1rem (bottom-4), or
+   clear of the phone's home indicator where that is taller. Same viewport-fit=cover
+   dependency as pb-safe. */
+@utility bottom-safe {
+  bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
 @utility no-scrollbar {
@@ -131,10 +145,10 @@
   mask-image: radial-gradient(ellipse 90% 75% at 50% 0%, #000 18%, transparent 80%);
 }
 
-/* CLI promo strip: hidden before first paint for a visitor who already closed it.
+/* CLI promo strip: hidden before first paint for a visitor who closed it this session.
    The banner is server-rendered on purpose — it lives in the document flow, so
    mounting it after hydration would shove the page down under someone mid-read. The
-   no-flash script in app.html sets this class from localStorage; the component then
+   no-flash script in app.html sets this class from a session cookie; the component then
    catches up on mount and drops the node. See #lib/cliPromo.ts. */
 .cli-banner-dismissed [data-cli-banner] {
   display: none;

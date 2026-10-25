@@ -51,7 +51,15 @@ func (p Plan) FullyResolved() bool {
 var answerKeyFor = map[string]string{
 	"first_name": "first_name",
 	"last_name":  "last_name",
-	"full_name":  "full_name",
+	// Workable's own control names for the same two fields. Measured on production
+	// 2026-10-25: an approved Workable application parked on `firstname` and `lastname` for a
+	// candidate whose name the profile had all along.
+	"firstname": "first_name",
+	"lastname":  "last_name",
+	// Workable's `address`, required on the same form, answered from the profile's location.
+	// By id and never by label: "Email address" and "IP address" are labels too.
+	"address":   "location",
+	"full_name": "full_name",
 	// Recruitee's own control name for the same field. Measured on production 2026-09-09:
 	// a queued Recruitee application parked on `{"id": "name", "label": "Full name"}` for
 	// a candidate whose full name the profile had all along.
@@ -239,6 +247,14 @@ func resolveOne(f MergedField, answers map[string]string, hasApprovedCV bool) (R
 			return ResolvedField{}, "no approved tailored CV for this attempt", false
 		}
 		return ResolvedField{}, "file uploads other than the résumé are not resolved by this package", false
+	}
+
+	// Before the keyed sources, because a consent is not answered by TEXT: its value is
+	// whichever option agrees, which matchOption cannot find from a stored "yes" when the
+	// form words it "I acknowledge". A candidate who has not granted it falls through to the
+	// bank like any other question.
+	if resolved, ok := resolvePrivacyConsent(f, answers); ok {
+		return resolved, "", true
 	}
 
 	keys := answerKeysFor(f)

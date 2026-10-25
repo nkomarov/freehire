@@ -1,13 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { resolve } from '$app/paths';
+  import { page } from '$app/state';
   import { ArrowRight, X } from '@lucide/svelte';
+  import { currentUser } from '#lib/auth.svelte.js';
   import { dismissCliBanner, loadCliBannerDismissed, cliBannerDismissed } from '#lib/cliBanner.svelte.js';
   import { sourceLogoUrl } from '#lib/logo.js';
+  import { isAccountArea } from '#lib/shellLayout.js';
   import { EntityLogo } from '#lib/ui/index.js';
 
   // A strip under the header pointing at /mcp (it pointed at /cli until the hosted MCP
-  // connectors became the main way in), dismissible and remembered. Self-gating
+  // connectors became the main way in). It asks until the account connects an agent;
+  // closing it only quiets it for the browser session (see #lib/cliPromo.ts). Self-gating
   // like EmailVerificationBanner, so the layout mounts it unconditionally.
   //
   // It took the place of the Product Hunt launch strip and kept its arrangement, which
@@ -29,32 +33,55 @@
   // avatar-stack CountryFlagStack draws for flags) instead of a sentence that wrapped to
   // four lines on a phone. Resolved by domain, as on /mcp, because "Cursor" by name
   // alone is ambiguous to the logo proxy.
-  const agents = [
+  // Not inside the account area. Someone in /my/** has an account and came to work in it;
+  // an MCP pitch there is one more band between the header and their page, and on a phone
+  // that chrome had pushed the content halfway down the screen. Decided by the URL, which
+  // the server knows too, so the server-rendered markup and the hydrated one agree.
+  const inAccountArea = $derived(isAccountArea(page.url.pathname));
+
+  // Gone for good once the account holds an API key or MCP grant. The user is resolved
+  // in the root layout's server load, so the server leaves the strip out of the markup.
+  const agentConnected = $derived(currentUser()?.agent_connected ?? false);
+
+  // `logo` overrides the proxy where it resolves the wrong mark: by name and domain it
+  // returns xAI's wordmark for Grok, so Grok Bot ships its own round mark.
+  // `mono`: a black-on-transparent mark that disappears on the dark theme's background,
+  // so it is inverted there; coloured marks stay as their brands draw them.
+  const agents: { name: string; domain: string; logo?: string; mono?: boolean }[] = [
     { name: 'Claude', domain: 'claude.ai' },
-    { name: 'ChatGPT', domain: 'chatgpt.com' },
+    { name: 'ChatGPT', domain: 'chatgpt.com', mono: true },
     { name: 'Cursor', domain: 'cursor.com' },
+    { name: 'Grok Bot', domain: 'grok.com', logo: '/brands/grok.png', mono: true },
   ];
 </script>
 
-{#if !cliBannerDismissed()}
+{#if !inAccountArea && !agentConnected && !cliBannerDismissed()}
   <div data-cli-banner class="border-b border-border bg-brand/5">
     <div class="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-2 text-sm">
-      <!-- The names live in the stack's label, so the sentence can stay short. -->
-      <span role="img" aria-label="Claude, ChatGPT and Cursor" class="flex shrink-0 items-center">
-        {#each agents as agent, i (agent.domain)}
-          <span
-            class={['inline-flex rounded-full ring-2 ring-background', i > 0 && '-ml-1']}
-            style:z-index={agents.length - i}
-          >
-            <EntityLogo name={agent.name} src={sourceLogoUrl(agent.name, agent.domain) ?? undefined} size="xs" />
-          </span>
-        {/each}
-      </span>
-
       <!-- Wraps to a second line on a phone rather than truncating the one sentence that
-           says what the strip is for. -->
+           says what the strip is for. The agents' marks follow the sentence that names
+           them; their names live in the stack's label, so the sentence can stay short. -->
       <p class="line-clamp-2 min-w-0 flex-1 leading-snug text-muted-foreground">
         <span class="font-medium text-foreground">Search jobs inside your AI agent.</span>
+        <span
+          role="img"
+          aria-label="Claude, ChatGPT, Cursor and Grok"
+          class="mx-1 inline-flex items-center align-middle"
+        >
+          {#each agents as agent, i (agent.domain)}
+            <span
+              class={['inline-flex rounded-full ring-2 ring-background', i > 0 && '-ml-1']}
+              style:z-index={agents.length - i}
+            >
+              <EntityLogo
+                name={agent.name}
+                src={agent.logo ?? sourceLogoUrl(agent.name, agent.domain) ?? undefined}
+                size="xs"
+                class={agent.mono ? 'dark:invert' : undefined}
+              />
+            </span>
+          {/each}
+        </span>
         <span class="hidden md:inline">Connect over MCP — free, no account needed to search.</span>
       </p>
 

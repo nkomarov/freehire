@@ -48,7 +48,9 @@ var descriptionWorkModePhrases = []struct {
 // returning "" when no anchored arrangement phrase is present. It is the
 // lowest-priority work-mode source (after the structured ATS signal and the parsed
 // location marker), so it only ever fills a value the others left empty. Values are
-// from vocab.WorkModeValues.
+// from vocab.WorkModeValues. The English phrases are tried first; German prose is read
+// only when none of them is stated (see germanWorkModePhrases), Dutch prose only
+// when neither is (see dutchWorkModePhrases), and the Indian register last (workmode_in.go).
 func WorkModeFromDescription(desc string) string {
 	lower := strings.ToLower(desc)
 	for _, wm := range descriptionWorkModePhrases {
@@ -58,7 +60,13 @@ func WorkModeFromDescription(desc string) string {
 			}
 		}
 	}
-	return ""
+	if m := germanWorkMode(desc, lower); m != "" {
+		return m
+	}
+	if m := dutchWorkMode(desc, lower); m != "" {
+		return m
+	}
+	return indianWorkMode(desc, lower)
 }
 
 // phraseMatches reports whether p occurs in text (already lowercased) unguarded. A

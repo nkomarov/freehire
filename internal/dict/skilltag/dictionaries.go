@@ -934,6 +934,31 @@ var wordAliases = map[string]string{
 	"gpu":       "gpu",
 	"bluetooth": "bluetooth",
 	"adas":      "adas",
+
+	// batch 6 (2026-10-25, German market) — protocol and SCADA names the German ATS crawl
+	// asks for in its requirement clauses, with no common German or English reading, and
+	// only an automation engineer's posting carries them. The batch's TOOL names (EPLAN,
+	// KNX, iTWO, ArchiCAD, Allplan) are phrases instead — see engineeringPhraseAliases.
+	"wincc":    "scada",
+	"profibus": "profibus",
+	"ethercat": "ethercat",
+	"canopen":  "canopen",
+
+	// batch 7 (2026-10-25, Dutch market) — mined from the LLM skills of the open Dutch
+	// postings (eures, recruitee, whatjobs-nl) and counted in their descriptions. Coined
+	// product names with no Dutch or English reading, which a developer's or an architect's
+	// posting asks for. Pega is a phrase (Spanish/Portuguese "pega"), and TOPdesk too: a
+	// facility clerk is asked for it as often as a service-desk engineer.
+	"mendix":      "mendix",
+	"outsystems":  "outsystems",
+	"thinkwise":   "thinkwise",
+	"matillion":   "matillion",
+	"archimate":   "archimate",
+	"togaf":       "togaf",
+	"auth0":       "auth0",
+	"firestore":   "firestore",
+	"onelake":     "microsoft-fabric",
+	"pegasystems": "pega",
 }
 
 // ambiguousWords marks the wordAliases keys whose word-pass match is "weak": Parse
@@ -1556,6 +1581,36 @@ var engineeringPhraseAliases = []phraseAlias{
 	{"midjourney", "midjourney"},
 	{"helpdesk", "help-desk"},
 	{"dmaic", "six-sigma"},
+	// batch 6 (2026-10-25, German market). "SPS" is German for PLC; the bare acronym is
+	// left out (it is also a German abbreviation in care and social-work postings), so
+	// the controller comes back through what an automation technician writes. TIA Portal
+	// and STEP 7 are Siemens' PLC environment and SIMATIC its PLC line. Sinumerik and a
+	// Heidenhain control are CNC controls; bare "Heidenhain" is an employer in its own
+	// right, so only the control is read.
+	{"sps programmierung", "plc"}, {"sps steuerung", "plc"}, {"sps steuerungen", "plc"},
+	{"speicherprogrammierbare steuerung", "plc"}, {"speicherprogrammierbare steuerungen", "plc"},
+	{"tia portal", "plc"}, {"siemens s7", "plc"}, {"simatic s7", "plc"}, {"simatic", "plc"},
+	{"sinumerik", "cnc"}, {"siemens 840d", "cnc"},
+	{"heidenhain steuerung", "cnc"}, {"heidenhain steuerungen", "cnc"},
+	// Tools an electrician, a site manager or a draughtsperson is asked for: real and
+	// specific, so they tag on their own, but listed in nonCorroboratingPhrases so they
+	// never vouch for a gated word. Measured on the crawl: as strong word aliases, "iTWO"
+	// on a site manager's posting vouched for "julia" (the contact, "Frau Julia …").
+	{"eplan", "eplan"}, {"knx", "knx"}, {"itwo", "itwo"},
+	{"archicad", "archicad"}, {"allplan", "allplan"},
+	// batch 7 (2026-10-25, Dutch market). Bare "pega" is a Spanish and Portuguese verb,
+	// "tekton" a hand-tool brand and "business central" could be prose, so each comes back
+	// only bound to its context. HASTUS is a transit planner's scheduling tool and does not
+	// vouch, nor does TOPdesk. NIS2 and NEN 7510 are regimes a posting is subject to: they tag, and never
+	// vouch (nonCorroboratingPhrases), as the compliance batch before them.
+	{"pega platform", "pega"}, {"pega developer", "pega"}, {"pega ontwikkelaar", "pega"},
+	{"pega csa", "pega"}, {"pega cssa", "pega"}, {"pega lsa", "pega"}, {"pega bpm", "pega"},
+	{"tekton pipelines", "tekton"}, {"tekton pipeline", "tekton"},
+	{"business central", "microsoft-dynamics"},
+	{"data vault", "data-vault"}, {"tabular editor", "tabular-editor"},
+	{"apache camel", "apache-camel"},
+	{"hastus", "hastus"}, {"topdesk", "topdesk"},
+	{"nis2", "nis2"}, {"nis 2", "nis2"}, {"nen 7510", "nen-7510"}, {"nen7510", "nen-7510"},
 }
 
 // professionalPhraseAliases is the non-engineering half of the IT-company role
@@ -1716,6 +1771,25 @@ var professionalPhraseAliases = []phraseAlias{
 	// role. All are non-corroborating — see below.
 	{"hipaa", "hipaa"}, {"gdpr", "gdpr"}, {"ccpa", "ccpa"}, {"lgpd", "lgpd"},
 	{"itar", "itar"}, {"dfars", "dfars"},
+	// batch 6 (2026-10-25, German market) — mined from the requirement clauses of the
+	// German ATS crawl ("Kenntnisse in …", "Erfahrung mit …"), which carries no LLM
+	// skills to mine. Bare "sap" stays gated (tree sap); the German clause that binds
+	// it to a requirement does not have that reading. Only German forms, so the English
+	// decisions about "SAP system" and "CRM" stay as they were: "systeme"/"systemen"
+	// are German plurals, never English. All non-corroborating — see below.
+	{"sap kenntnisse", "sap"}, {"sap kenntnissen", "sap"}, {"sap anwenderkenntnisse", "sap"},
+	{"kenntnisse in sap", "sap"}, {"erfahrung mit sap", "sap"}, {"umgang mit sap", "sap"},
+	{"sap erfahrung", "sap"}, {"sap umfeld", "sap"},
+	{"sap systeme", "sap"}, {"sap systemen", "sap"},
+	{"sap r/3", "sap"}, {"sap hcm", "sap"}, {"sap is-u", "sap"}, {"sap sd", "sap"},
+	{"sap fi", "sap-fico"}, {"sap co", "sap-fico"}, {"sap fico", "sap-fico"},
+	{"datev", "datev"}, {"lodas", "datev"},
+	{"erp systeme", "erp"}, {"erp systemen", "erp"},
+	{"crm systeme", "crm"}, {"crm systemen", "crm"},
+	// batch 7 (2026-10-25, Dutch market) — the HR, payroll and bookkeeping suites a Dutch
+	// clerk's or a functional administrator's posting asks for. All non-corroborating.
+	{"afas", "afas"}, {"exact online", "exact-online"}, {"nmbrs", "nmbrs"},
+	{"youforce", "youforce"},
 }
 
 // occupationalSafetyPhraseAliases is its own slice rather than more lines in the list
@@ -1863,6 +1937,29 @@ var nonCorroboratingPhrases = func() map[string]bool {
 		"lgpd":      true,
 		"itar":      true,
 		"dfars":     true,
+		// batch 6 (German market): a clerk's tools named in a German requirement clause.
+		// "SAP-Kenntnisse" and "Erfahrung mit DATEV" are what a Sachbearbeiter or a
+		// Steuerfachangestellte posting asks for, so the tool tags and does not vouch.
+		"sap":      true,
+		"sap-fico": true,
+		"datev":    true,
+		"erp":      true,
+		"crm":      true,
+		"eplan":    true,
+		"knx":      true,
+		"itwo":     true,
+		"archicad": true,
+		"allplan":  true,
+		// batch 7 (Dutch market): the clerk's suites, a transit planner's tool, and two
+		// regimes — each tags, none vouches.
+		"afas":         true,
+		"exact-online": true,
+		"nmbrs":        true,
+		"youforce":     true,
+		"hastus":       true,
+		"topdesk":      true,
+		"nis2":         true,
+		"nen-7510":     true,
 	}
 	// Occupational safety, by construction rather than by hand, and for a reason this
 	// map's own doctrine already states about naming a regime. "First aid", "corrective action" and "risk

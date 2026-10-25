@@ -19,6 +19,15 @@ func SelfClosingProviders(reg map[string]Source) []string {
 	return out
 }
 
+// SelfCloses reports whether src manages its own closes from a change stream (see selfClosing).
+// Such a source emits CHANGES rather than its listing, so nothing derived from one crawl's
+// emissions — the quiet-board backoff's listing fingerprint, for one — describes what the board
+// still lists.
+func SelfCloses(src Source) bool {
+	_, ok := src.(selfClosing)
+	return ok
+}
+
 // FullCatalogProviders returns the provider names in reg that list their whole catalogue each
 // run and so may be swept by source rather than by crawled company (see fullCatalog).
 func FullCatalogProviders(reg map[string]Source) []string {
@@ -450,6 +459,11 @@ func All(c HTTPClient) map[string]Source {
 		NewCoveto(limitedCovetoGetter(c)),
 		NewConcludis(c),
 		NewKenjo(c),
+		NewEasyCruit(c),
+		// Rate-paced: one origin serves every Homerun feed and vacancy page (see homerunRequestInterval).
+		NewHomerun(pacedHomerunGetter(c)),
+		NewHROffice(c),
+		NewGreytHR(c),
 		// Concurrency-limited: one origin serves every helixjobs iid (see helixjobsMaxInFlight).
 		NewHelixjobs(limitedHelixjobsGetter(c)),
 		NewTalentstorm(c),
@@ -479,6 +493,10 @@ func All(c HTTPClient) map[string]Source {
 		// Japan Dev: curated Japan technology aggregator. One public sitemap lists posting URLs;
 		// detail pages carry structured Nuxt SSR state and official ATS apply links when available.
 		NewJapanDev(c),
+		// sitemapldjson: board is a sitemap URL (plain XML or .xml.gz, index walked
+		// to a fixed depth). Region is an optional URL glob. Pages with no JobPosting
+		// are skipped. Hydrating, with a per-run cap on new detail fetches.
+		NewSitemapLDJSON(c),
 		// ITviec: Vietnam's IT-only board. One server-rendered listing names the whole
 		// catalogue; posting pages carry a schema.org JobPosting. Paced, see itviecRequestInterval.
 		NewITviec(pacedHTMLGetter(c, itviecRequestInterval, itviecRequestBurst)),
@@ -511,6 +529,12 @@ func All(c HTTPClient) map[string]Source {
 		// Workwise: a German recruiting platform whose one posting sitemap names the whole
 		// catalogue; each new posting is hydrated from its page's ld+json. See workwise.go.
 		NewWorkwise(c),
+		// Dutch public boards: the central government (werkenvoornederland), the municipalities
+		// (gemeentebanen) and the universities and research institutes (academictransfer). Each
+		// is one posting sitemap; every new posting is hydrated from its page's ld+json.
+		NewWerkenVoorNederland(c),
+		NewGemeentebanen(c),
+		NewAcademicTransfer(c),
 		// CHECK-IN (mein-check-in.de): a German applicant portal of savings banks, cooperative
 		// banks and councils; a board is the tenant slug and each new position is hydrated from
 		// its page's microdata. See meincheckin.go.
@@ -774,15 +798,37 @@ func All(c HTTPClient) map[string]Source {
 	} else {
 		registry["naukri"] = NewNaukri(pacedNaukriGetter(withUserAgent(c, naukriUserAgent)))
 	}
+	// Instahyre: an Indian technical-hiring platform, enumerated by company-size bucket (board)
+	// through its JSON search, each new posting's body read from its public page. The pages sit
+	// behind Cloudflare, so the crawl is really served once ApplyScraplingEgress rebuilds it over
+	// the fetch service (scraplingtier.go); this plain build is what runs without one.
+	if c == nil {
+		registry["instahyre"] = NewInstahyre(nil, nil)
+	} else {
+		registry["instahyre"] = pacedInstahyre(c, c)
+	}
+	// hirist.tech and iimjobs.com: one Indian job platform on two sites, enumerated by category
+	// (board) through the API their web app calls, hydrating each new posting's body from the
+	// posting API. Every request of a run is paced to one a second. See hirist.go.
+	if c == nil {
+		registry["hirist"] = NewHirist(nil)
+		registry["iimjobs"] = NewIIMJobs(nil)
+	} else {
+		registry["hirist"] = NewHirist(pacedHiristGetter(c))
+		registry["iimjobs"] = NewIIMJobs(pacedHiristGetter(c))
+	}
+	// Shine.com: an Indian general job board, enumerated from its job sitemaps, each new
+	// posting's facts read from its page's schema.org JobPosting. See shine.go.
+	registry["shine"] = NewShine(c)
 	// meta/uber/gusto are NOT served by the shared client: Meta's edge 400s the default Go
 	// TLS+HTTP/2 fingerprint and Uber's and Gusto's Cloudflare edges challenge it, so all three
 	// need the shared Chrome-fingerprint transport (fingerprintHTTP, also used by the
 	// bayt/gulftalent aggregators, by jobleads — whose search edge rejects the plain Go
 	// fingerprint the same way and serves a Chrome one 200, keyless — and by startupjobs' and
-	// gradcracker's Cloudflare-challenged pages). Build it only when there
+	// gradcracker's Cloudflare-challenged pages, and by darwinbox's careers API). Build it only when there
 	// is a real client to serve (the c == nil marker/listing path — e.g. FilterableProviders —
 	// must stay transport-free, so these register with a nil client there; Provider()/boardless()
-	// never touch it). If the deterministic transport build ever fails, all eight are left
+	// never touch it). If the deterministic transport build ever fails, all nine are left
 	// unregistered so config validation fails fast on their board entries, rather than
 	// registering a client guaranteed to be rejected by the edge.
 	if c == nil {
@@ -798,6 +844,7 @@ func All(c HTTPClient) map[string]Source {
 		// startupjobs likewise: it is an aggregator, and the dedup pass must know it as one.
 		registry["startupjobs"] = NewStartupJobs(nil, nil, nil, 0)
 		registry["gradcracker"] = NewGradcracker(nil, 0)
+		registry["darwinbox"] = NewDarwinbox(nil)
 	} else if fp, err := newFingerprintHTTP(); err == nil {
 		registry["meta"] = NewMetaCareers(fp)
 		registry["bayt"] = NewBayt(fp)
@@ -815,6 +862,8 @@ func All(c HTTPClient) map[string]Source {
 		// Every gradcracker request, listing and posting page alike, shares one limiter: the
 		// edge counts requests per IP (see gradcrackerRequestInterval).
 		registry["gradcracker"] = NewGradcracker(pacedGradcracker(fp), 0)
+		// Darwinbox's careers API sits behind Cloudflare, which 403s the plain Go fingerprint.
+		registry["darwinbox"] = NewDarwinbox(fp)
 	}
 	return registry
 }

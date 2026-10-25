@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Answers } from '#lib/generated/contracts.js';
+  import { announce } from '#lib/announce.svelte.js';
   import { api } from '#lib/api.js';
   import { Button, Input } from '#lib/ui/index.js';
   import { messages } from './ScreeningAnswersForm.messages';
@@ -8,7 +9,7 @@
 
   // Editable form for the six screening questions that repeat across ATS application
   // forms (work authorization, visa sponsorship, desired salary, notice period,
-  // willingness to relocate, 18+) — see internal/screeninganswers/AGENTS.md. Standalone
+  // willingness to relocate, 18+) plus the standing privacy consent — see internal/screeninganswers/AGENTS.md. Standalone
   // section on the profile page's Settings tab, its own heading and its own save action,
   // deliberately separate from ProfileForm (a different lifecycle: these are facts the
   // candidate states directly, not a CV/skills targeting profile).
@@ -53,6 +54,7 @@
   let noticePeriodDays = $state(answers?.notice_period_days?.toString() ?? '');
   let willingToRelocate = $state<TriState>(toTriState(answers?.willing_to_relocate));
   let age18OrOlder = $state<TriState>(toTriState(answers?.age_18_or_older));
+  let privacyConsent = $state<TriState>(toTriState(answers?.privacy_consent));
 
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -72,6 +74,7 @@
     noticePeriodDays = answers?.notice_period_days?.toString() ?? '';
     willingToRelocate = toTriState(answers?.willing_to_relocate);
     age18OrOlder = toTriState(answers?.age_18_or_older);
+    privacyConsent = toTriState(answers?.privacy_consent);
   });
 
   function markDirty() {
@@ -106,12 +109,16 @@
       if (relocate !== undefined) patch.willing_to_relocate = relocate;
       const age = fromTriState(age18OrOlder);
       if (age !== undefined) patch.age_18_or_older = age;
+      const consent = fromTriState(privacyConsent);
+      if (consent !== undefined) patch.privacy_consent = consent;
 
       await api.updateScreeningAnswers(patch);
       note = s.saved;
+      announce(s.saved);
       onSaved?.();
     } catch (e) {
       error = e instanceof Error ? e.message : s.saveFailed;
+      announce(error, 'assertive');
       // The save never landed — these values are still unsaved and must stay protected.
       dirty = true;
     } finally {
@@ -171,6 +178,20 @@
         <option value="yes">{s.triState.yes}</option>
         <option value="no">{s.triState.no}</option>
       </select>
+    </label>
+
+    <label class="flex flex-col gap-1 text-sm sm:col-span-2">
+      <span class="text-muted-foreground">{s.fields.privacyConsent}</span>
+      <select
+        bind:value={privacyConsent}
+        onchange={markDirty}
+        class="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+      >
+        <option value="">{s.triState.notStated}</option>
+        <option value="yes">{s.triState.yes}</option>
+        <option value="no">{s.triState.no}</option>
+      </select>
+      <span class="text-xs text-muted-foreground">{s.fields.privacyConsentHint}</span>
     </label>
 
     <label class="flex flex-col gap-1 text-sm">

@@ -14,13 +14,16 @@ at the cost of no second language, process, or deploy artifact. See
 `openspec/changes/auto-apply-worker/design.md`'s "chromedp, not a Python/Patchright sidecar"
 decision for the measurements and its caveats.
 
-**A second, narrower backend exists for two providers chromedp cannot fill/submit for at
-all: Ashby and Workable, via the browser-use.com cloud agent API** (`browseruse_fill.go`,
+**Every submission now goes through a second backend, the browser-use.com cloud agent API** (`browseruse_fill.go`,
 `openspec/changes/add-browseruse-atsapply-fallback`). This does not reopen the decision
 above — it is a plain HTTP client (`internal/platform/browseruse`), no second language or
 process, called only via `Client.WithBrowserUse`. Scope is deliberately narrow:
-- **Only Ashby and Workable** (`browserUseProviders`) — Greenhouse and Lever already have a
-  fill path and never reach this branch; a white-label (unrecognized-layout) Greenhouse posting has
+- **`browserUseProviders` is Ashby, Workable, Lever and Greenhouse; `fillProviders` is
+  empty.** Ashby and Workable have no chromedp fill path at all. Lever (2026-09-10) and
+  Greenhouse (2026-10-25) have one and were moved anyway: this host's Chrome lost their
+  invisible captchas most of the time, and it submitted every candidate's application from
+  the host's own address. Their DOM is still scanned here first, so a field the platform API
+  never declares (Greenhouse's `country`) reaches the plan the agent is handed. A white-label (unrecognized-layout) Greenhouse posting has
   no `MergedField` schema to build a `Plan` from in the first place, since chromedp's own
   DOM scan is what failed there; a captcha-protected posting (Lever, or
   `reasonCaptchaProtected`) is never routed here — that would be an attempt to bypass a
@@ -101,7 +104,9 @@ process, called only via `Client.WithBrowserUse`. Scope is deliberately narrow:
   Widening the live DOM-scan to another provider is a real gap to
   close, not a design decision to defend.
 - **`fetchSchema` falls back to a stored form ONLY when no live fetcher is registered for
-  the provider — not storage-first.** `Client.forms` (`WithStoredFormReader`, same
+  the provider, or the live fetch FAILED — never storage-first.** The failure case was added
+  on 2026-10-25, when Workable rate-limited this host for 23 hours and every approved
+  application died on the schema fetch before the browser ever ran. `Client.forms` (`WithStoredFormReader`, same
   `StoredFormReader` port `PreviewClient` uses) closes Recruitee's own schema-fetch gap:
   `internal/ingest/applyform.Fetchers` has no `Fetcher` for it (its form arrives free with
   the ingest crawl and is written directly to `apply_forms`), so before this it parked with
@@ -182,7 +187,8 @@ process, called only via `Client.WithBrowserUse`. Scope is deliberately narrow:
   the ordinary generic-drafter path, logged the same way `buildGroundingContext`'s own read
   failure degrades in `client.go`'s `resolve`. This does not make Recruitee-shaped gaps in
   drafting go away — it only ever runs where `resolve` reaches `ResolveWithDrafting` at all
-  (today: Greenhouse only, per `fillProviders`), same as `LLMDrafter` itself. See
+  (every provider `Client.submits` names: `fillProviders`, plus the browser-use
+  providers while that executor is wired and enforcing), same as `LLMDrafter` itself. See
   `openspec/changes/autoapply-reuse-cover-letter`.
 - **A geography/residency question (`geography.go`) parks before drafting too, for a
   different reason than the sensitive gate.** `sensitiveTerms` (`sensitive.go`) parks a
@@ -244,6 +250,14 @@ process, called only via `Client.WithBrowserUse`. Scope is deliberately narrow:
   second real submission. A code review caught an earlier version of this that mapped the
   same situation to a plain retryable error — see `internal/application/autoapply/runner_test.go`'s
   `TestRunDeadLettersImmediatelyOnAnUnconfirmedSubmission`.
+- **A standing privacy consent ticks the condition of applying and nothing beside it**
+  (`consent.go`). Measured 2026-10-25: 34k captured forms carry a REQUIRED privacy /
+  personal-data consent (Workable's labelless `gdpr` boolean alone is on 23,835), and every
+  one parked. With `screening_answers.privacy_consent` granted, `resolveOne` answers such a
+  field before the keyed sources — by OPTION, not by text, since a stored "yes" matches no
+  "I acknowledge" option. The exclusions are what share those pages: future-openings talent
+  pools, SMS/marketing opt-ins, background checks and demographic disclosures. A field whose
+  agreeing option cannot be told apart (none, or two) parks rather than having one picked.
 
 ## How it works
 `Client.Submit`: captcha short-circuit → fetch the platform's schema via

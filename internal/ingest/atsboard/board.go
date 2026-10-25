@@ -312,6 +312,15 @@ var atsBoards = []struct{ host, source, mode string }{
 	{"concludis.de", "concludis", modeSubdomain},
 	{"kenjo.io", "kenjo", modeSubdomain},
 	{"talentstorm.de", "talentstorm", modeSubdomain},
+	// Homerun (Dutch) and Visma EasyCruit (Dutch and Nordic): the tenant is a label on the vendor's
+	// domain (douglas.homerun.co, lentis.easycruit.com). A Homerun site often lives on the
+	// employer's own domain instead, which no URL rule can name. Vendor hosts are in
+	// platformLabelsByApex.
+	{"homerun.co", "homerun", modeSubdomain},
+	{"easycruit.com", "easycruit", modeSubdomain},
+	// HR Office (Dutch): the career site is a label on inhroffice.com. Employers that show the
+	// same vacancies on their own domain pull them from there, so those domains name no board.
+	{"inhroffice.com", "hroffice", modeSubdomain},
 	// helixjobs: the concludis portal, keyed by instance id (see queryBoards).
 	{"helixjobs.com", "helixjobs", modeQuery},
 	// Emply: <tenant>.career.emply.com. A site on the customer's own domain (midtjob.dk) is a
@@ -469,6 +478,15 @@ var atsBoards = []struct{ host, source, mode string }{
 	{"phenompro.com", "phenom", modeTenantHost},
 	{"phenompeople.net", "phenom", modeTenantHost},
 	{"phenompeople.com", "phenom", modeTenantHost},
+	// Darwinbox career portals: <tenant>.darwinbox.in or <tenant>.darwinbox.com, the TLD being the
+	// tenant's data region, so the board is the whole host the adapter posts its listing to. The
+	// same host is also the tenant's employee HRMS login, hence the "careers" segment below.
+	{"darwinbox.in", "darwinbox", modeTenantHost},
+	{"darwinbox.com", "darwinbox", modeTenantHost},
+	// greytHR Hire: <tenant>.greythr.com/hire/jobs/, the board being the whole host the adapter
+	// reads /hire/api/ on. The same host is the tenant's payroll/HRMS login, hence the "hire"
+	// segment below.
+	{"greythr.com", "greythr", modeTenantHost},
 
 	// --- keyedsegment: board = the shaped segment after a fixed key segment ---
 	{"workstream.us", "workstream", modeKeyedSegment},
@@ -595,6 +613,12 @@ var tenantHostPostingSegments = map[string]string{
 	"phenompro.com":    "job",
 	"phenompeople.net": "job",
 	"phenompeople.com": "job",
+	// Every Darwinbox portal URL carries it (/ms/candidatev2/main/careers/jobDetails/<id>,
+	// /ms/candidate/careers/<id>); the tenant's HRMS pages on the same host do not.
+	"darwinbox.in":  "careers",
+	"darwinbox.com": "careers",
+	// Every greytHR Hire URL sits under /hire/ (/hire/jobs/, /hire/jobs/<slug>); the HRMS does not.
+	"greythr.com": "hire",
 }
 
 // keyedSegmentBoards holds, per modeKeyedSegment host entry, the key segment the board follows
@@ -1406,6 +1430,16 @@ var platformLabelsByApex = map[string][]string{
 	"kenjo.io": {"www", "hr", "files"},
 	// talentstorm's marketing site, its API, and the host its tutorial videos are served from.
 	"talentstorm.de": {"www", "api", "videos"},
+	// Homerun's marketing site and sign-up funnel, the host a gone tenant's pages redirect to, the
+	// one feed host every tenant's feed is served from, and its asset hosts.
+	"homerun.co":     {"www", "try", "404", "feed", "static", "cdn"},
+	"easycruit.com":  {"www"},         // Visma's EasyCruit product site
+	"inhroffice.com": {"www", "link"}, // link.inhroffice.com is the vendor's link shortener
+	// Darwinbox's marketing site, its content hub and its events site.
+	"darwinbox.com": {"www", "explore", "lighthouse"},
+	"darwinbox.in":  {"www"},
+	// greytHR's marketing site, community forum, help centres, status page and campaign pages.
+	"greythr.com": {"www", "community", "admin-help", "ess-help", "status", "campaign"},
 }
 
 // platformHost reports whether host is the ATS's own product host rather than a tenant's —
