@@ -4,7 +4,7 @@
   "Badge": 26,
   "BrandMark": 2,
   "Breadcrumbs": 6,
-  "Button": 109,
+  "Button": 108,
   "Card": 23,
   "Chip": 17,
   "ConfirmDialog": 20,
@@ -14,7 +14,7 @@
   "EntityLogo": 32,
   "FormField": 6,
   "Input": 27,
-  "LoadMore": 6,
+  "LoadMore": 8,
   "NoticeDialog": 0,
   "NumberedGrid": 6,
   "Pager": 0,
@@ -24,6 +24,6 @@
   "Skeleton": 4,
   "Table": 8,
   "Tabs": 1,
-  "TabStrip": 14,
+  "TabStrip": 15,
   "Tooltip": 2
 }
