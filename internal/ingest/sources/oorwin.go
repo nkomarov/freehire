@@ -146,7 +146,9 @@ func (s oorwin) FetchNew(ctx context.Context, e CompanyEntry, seen func(external
 	if err != nil {
 		return nil, err
 	}
-	company = firstNonEmpty(e.Company, company)
+	// The portal's own display name is the employer's; the catalogue's is the fallback, since a
+	// board seeded from a bare label carries the label as its company.
+	company = firstNonEmpty(company, e.Company)
 	var unseen []oorwinListing
 	var refreshed []Job
 	for _, r := range rows {

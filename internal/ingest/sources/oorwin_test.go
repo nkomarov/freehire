@@ -79,7 +79,9 @@ func oorwinUnicom(t *testing.T) *oorwinFake {
 	}
 }
 
-var oorwinUnicomEntry = CompanyEntry{Company: "Unicom Technologies", Provider: "oorwin", Board: "unicom"}
+// The catalogue's company is the bare label, as a board seeded from a portal URL carries it;
+// the portal's own display name ("Unicom Technologies INC") is what a posting must name.
+var oorwinUnicomEntry = CompanyEntry{Company: "unicom", Provider: "oorwin", Board: "unicom"}
 
 func TestOorwinProvider(t *testing.T) {
 	s, ok := All(nil)["oorwin"]
@@ -109,7 +111,7 @@ func TestOorwinListingRefreshesSeenPostings(t *testing.T) {
 		t.Errorf("listing request = %+v", r)
 	}
 	for _, j := range jobs {
-		if !j.SeenRefresh || len(j.ExternalID) != 40 || j.Company != "Unicom Technologies" ||
+		if !j.SeenRefresh || len(j.ExternalID) != 40 || j.Company != "Unicom Technologies INC" ||
 			j.URL != "https://unicom.oorwin.com/careers/index.html#/job/details/"+j.ExternalID {
 			t.Errorf("job = %+v, want an identity-only SeenRefresh", j)
 		}
@@ -134,7 +136,7 @@ func TestOorwinMapsADetail(t *testing.T) {
 	if j.SeenRefresh || !strings.Contains(j.Description, "Senior Java Developer") {
 		t.Fatalf("java = %+v, want a hydrated posting", j)
 	}
-	if j.Title != "senior Java Developer / Lead Java Developer" || j.Company != "Unicom Technologies" {
+	if j.Title != "senior Java Developer / Lead Java Developer" || j.Company != "Unicom Technologies INC" {
 		t.Errorf("title/company = %q/%q", j.Title, j.Company)
 	}
 	if j.Location != "Chicago, IL, USA" || len(j.Countries) != 1 || j.Countries[0] != "us" {
