@@ -107,7 +107,7 @@ describe.each([
 
     expect(outcomes).toEqual(fills.map(({ label }) => ({ label, status: 'filled' })));
     for (const label of Object.keys(matched))
-      expect(input(ids[label]).value).toBe(`v-${matched[label]}`);
+      expect(input(must(ids[label], label)).value).toBe(`v-${matched[label]}`);
     for (const id of untouched) expect(input(id).value).toBe(before[id]);
     for (const upload of Array.from(
       document.querySelectorAll<HTMLInputElement>('input[type=file]'),
