@@ -1,6 +1,6 @@
 // Package classify derives a job's seniority and role category deterministically
 // from its title. It is a curated dictionary, not a model: it resolves known
-// English, Russian, German and Dutch title terms and emits nothing for what it cannot resolve
+// English, Russian, German, Dutch and Japanese title terms and emits nothing for what it cannot resolve
 // (it never guesses). Canonical values are drawn from the same controlled
 // vocabularies the enrichment contract defines (vocab.SeniorityValues /
 // vocab.CategoryValues), so the parser, the enrichment payload, and the search
@@ -77,6 +77,9 @@ func matchSeniority(lower string) string {
 	if s := matchOrdered(lower, seniorityTable); s != "" {
 		return s
 	}
+	if s := matchOrdered(lower, japaneseSeniorityTable); s != "" {
+		return s
+	}
 	// Nothing in the main table: try the Indian rungs and entry-hire words (india.go),
 	// then the German grade words and heads (german.go), then the Dutch ones (dutch.go).
 	if s := matchOrdered(lower, indianSeniorityTable); s != "" {
@@ -143,7 +146,7 @@ func occurrences(s, term string) [][2]int {
 		}
 		start := from + i
 		end := start + len(term)
-		if wordmatch.UnicodeBoundary(s, start, end) {
+		if titleBoundary(s, start, end) {
 			out = append(out, [2]int{start, end})
 		}
 		from = start + 1
@@ -199,7 +202,7 @@ func invertAliases(table []aliasEntry) map[string][]string {
 // carrying several grade words ("Lead Senior") resolves the stronger one.
 func matchOrdered(title string, table []aliasEntry) string {
 	for _, e := range table {
-		if wordmatch.Contains(title, e.alias, wordmatch.UnicodeBoundary) {
+		if wordmatch.Contains(title, e.alias, titleBoundary) {
 			return e.canonical
 		}
 	}
