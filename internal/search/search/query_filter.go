@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/strelov1/freehire/internal/dict/location"
 	"github.com/strelov1/freehire/internal/dict/vocab"
 )
 
@@ -216,6 +217,20 @@ func withinDays(n int) bool { return n > 0 && n <= maxWithinDays }
 // relative `posted_within_days` cutoff is deterministic under test. The exported
 // wrapper supplies time.Now(); only this inner form is unit-tested for the date
 // branch.
+// facetValue maps a caller-supplied facet value to the value the index carries. Only
+// `cities` is resolved: the index holds the canonical name ("Munich"), so a local
+// spelling ("München") is looked up in the curated location dictionary. An unknown
+// value stays verbatim, since an open facet may legitimately carry a value the
+// dictionary does not know.
+func facetValue(param, val string) string {
+	if param == "cities" {
+		if name, ok := location.CanonicalCity(val); ok {
+			return name
+		}
+	}
+	return val
+}
+
 func filterFromValues(v url.Values, now time.Time) any {
 	var groups [][]string
 	// Included geography fragments across regions/countries/cities collect here and
@@ -224,6 +239,9 @@ func filterFromValues(v url.Values, now time.Time) any {
 
 	for param, attr := range StringFacets {
 		included := splitFacetValues(v[param])
+		for i, val := range included {
+			included[i] = facetValue(param, val)
+		}
 		switch {
 		case locationFacets[param]:
 			for _, val := range included {
@@ -248,7 +266,7 @@ func filterFromValues(v url.Values, now time.Time) any {
 		}
 		// Excluded values: each is its own AND group so all are filtered out.
 		for _, val := range splitFacetValues(v[param+"_exclude"]) {
-			groups = append(groups, []string{facetNeq(param, attr, val)})
+			groups = append(groups, []string{facetNeq(param, attr, facetValue(param, val))})
 		}
 	}
 	if len(locationGroup) > 0 {
