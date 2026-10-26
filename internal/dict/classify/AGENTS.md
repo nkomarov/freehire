@@ -272,6 +272,21 @@ president" inside it. No grade is ever read from a years figure in a title.
 Measured 2026-10-25 over 63,305 Indian postings: title seniority 31.6% → 34.1%; a
 hand-check of every newly resolved title in the top 400 found none wrong.
 
+## Chinese titles
+
+`chinese.go` reads Simplified (mokahr) and Traditional (the Taiwanese boards) titles. Chinese
+writes no spaces, so its table matches SUBSTRINGS and is a fallback after the main, German and
+Dutch tables. Three rules carry it, each argued beside the code:
+
+- **Aliases are compounds that name the role** (會計, 倉管, 韌體), never the heads every title
+  ends in — 工程師, 人員, 助理, 開發, 設計 resolve nothing alone.
+- **Only a title carrying Han is read**, so its Latin aliases (`cnc`, `cad`, `java`) never touch
+  a Latin title, and a Latin alias must not continue a Latin word (`ios` in BIOS).
+- **A Japanese title is never read** — kana, or a kanji only Japanese writes. Kanji-only
+  Japanese titles still pass, and were measured: they mostly mean the same thing in both
+  (法務, 看護師, 店長); the ones that do not (保全, 業務) are vetoed or listed only in their
+  Taiwanese compounds. A new alias that is also a Japanese word needs the same check.
+
 ## Serving: dict-only
 
 `jobview.FromRow` overwrites the nested `enrichment.seniority`/`enrichment.category` with the `jobs` column — the dictionary always wins, the LLM's value is never a fallback. They remain **nested under `enrichment`** so existing search facets, SPA, and generated contracts are unchanged.
