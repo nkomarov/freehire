@@ -12,7 +12,20 @@
   // the excludable `category` facet (each chip cycles off → include → exclude → off);
   // `plain` makes it an include-only choice (e.g. a profile category is not a filter
   // to exclude). When `counts` is passed, each chip shows its live match count.
-  let { store, plain = false, counts = null }: { store: FacetStore; plain?: boolean; counts?: FacetCounts | null } = $props();
+  let {
+    store,
+    plain = false,
+    counts = null,
+    hintSearch = false,
+  }: { store: FacetStore; plain?: boolean; counts?: FacetCounts | null; hintSearch?: boolean } = $props();
+
+  let hinted = $state(false);
+  $effect(() => {
+    if (!hintSearch) return;
+    hinted = true;
+    const timer = setTimeout(() => (hinted = false), 1000);
+    return () => clearTimeout(timer);
+  });
 
   const dist = $derived(counts?.facets?.category ?? null);
 
@@ -33,7 +46,12 @@
 
 <FacetHeader {store} param="category" label="Specialization" />
 
-<div class="mb-4 flex items-center gap-2 rounded-lg border border-input px-3 focus-within:ring-2 focus-within:ring-ring">
+<div
+  class={[
+    'mb-4 flex items-center gap-2 rounded-lg border px-3 transition-shadow duration-700 focus-within:ring-2 focus-within:ring-ring',
+    hinted ? 'border-brand-ring ring-2 ring-brand-ring' : 'border-input',
+  ]}
+>
   <Search class="size-4 shrink-0 text-muted-foreground" />
   <input
     bind:value={query}
