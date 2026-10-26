@@ -213,10 +213,6 @@ const maxWithinDays = 36500
 // it says exactly what honouring it would have.
 func withinDays(n int) bool { return n > 0 && n <= maxWithinDays }
 
-// filterFromValues is FilterFromValues with the reference time injected, so the
-// relative `posted_within_days` cutoff is deterministic under test. The exported
-// wrapper supplies time.Now(); only this inner form is unit-tested for the date
-// branch.
 // facetValue maps a caller-supplied facet value to the value the index carries. Only
 // `cities` is resolved: the index holds the canonical name ("Munich"), so a local
 // spelling ("München") is looked up in the curated location dictionary. An unknown
@@ -231,6 +227,10 @@ func facetValue(param, val string) string {
 	return val
 }
 
+// filterFromValues is FilterFromValues with the reference time injected, so the
+// relative `posted_within_days` cutoff is deterministic under test. The exported
+// wrapper supplies time.Now(); only this inner form is unit-tested for the date
+// branch.
 func filterFromValues(v url.Values, now time.Time) any {
 	var groups [][]string
 	// Included geography fragments across regions/countries/cities collect here and
