@@ -193,7 +193,7 @@
       await api.setBuddyApplicationHidden(String(buddyApplicationId), hiddenInBuddyFeed);
     } catch (err) {
       hiddenInBuddyFeed = previous;
-      sessionError = err instanceof Error ? err.message : 'Could not update buddy feed visibility.';
+      sessionError = err instanceof Error ? err.message : s.errors.buddyVisibility;
     } finally { buddyVisibilityBusy = false; }
   }
 
@@ -677,7 +677,7 @@
       {#if buddyMember && buddyApplicationId !== null}
         <label class="flex items-center gap-2 text-sm text-muted-foreground">
           <input type="checkbox" checked={!hiddenInBuddyFeed} disabled={buddyVisibilityBusy} onchange={toggleBuddyVisibility} />
-          Show in buddy feed
+          {s.showInBuddyFeed}
         </label>
       {/if}
       {#if sessionError}
